@@ -28,6 +28,7 @@ import {
   BellIcon,
   ClockIcon,
   TicketIcon,
+  FolderIcon,
 } from "@/components/icons"
 import type { User } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -44,6 +45,7 @@ const navItems = [
   { href: "/admin/dashboard", label: "Dashboard", icon: DashboardIcon },
   { href: "/admin/clients", label: "Clients", icon: UsersIcon },
   { href: "/admin/applications", label: "Applications", icon: FileTextIcon },
+  { href: "/admin/documents", label: "Documents", icon: FolderIcon },
   { href: "/admin/appointments", label: "Appointments", icon: CalendarIcon },
   { href: "/admin/availability", label: "Availability", icon: ClockIcon },
   { href: "/admin/access-codes", label: "Access Codes", icon: TicketIcon },

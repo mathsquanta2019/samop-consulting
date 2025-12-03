@@ -432,6 +432,46 @@ export async function createAppointment(data: Partial<Appointment>): Promise<Api
   return { success: true, data: newApt, message: "Appointment created successfully!" }
 }
 
+export async function createAppointmentWithPayment(data: {
+  name: string
+  email: string
+  phone: string
+  serviceType: string
+  date: string
+  time: string
+  notes?: string
+  paymentMethod: "stripe" | "paypal" | "paystack" | "flutterwave"
+  accessCode?: string
+}): Promise<ApiResponse<Appointment & { paymentId?: string }>> {
+  await delay(800)
+
+  // Mock payment processing
+  const paymentId = data.accessCode ? undefined : "pay_" + Date.now()
+
+  const newApt: Appointment = {
+    id: "apt_" + Date.now(),
+    clientId: undefined,
+    clientName: data.name,
+    clientEmail: data.email,
+    clientPhone: data.phone,
+    type: data.serviceType as AppointmentType,
+    status: "scheduled",
+    date: data.date,
+    time: data.time,
+    duration: 60,
+    notes: data.notes,
+    createdAt: new Date().toISOString(),
+  }
+
+  return {
+    success: true,
+    data: { ...newApt, paymentId },
+    message: data.accessCode
+      ? "Appointment booked successfully with access code!"
+      : "Payment processed and appointment booked successfully!",
+  }
+}
+
 export async function updateAppointment(id: string, data: Partial<Appointment>): Promise<ApiResponse<Appointment>> {
   await delay(400)
   const appointment = mockAppointments.find((apt) => apt.id === id)
@@ -520,6 +560,8 @@ export async function submitContactMessage(data: {
   }
   return { success: true, data: newMessage, message: "Message sent successfully!" }
 }
+
+export const submitContactForm = submitContactMessage
 
 export async function markMessageAsRead(id: string): Promise<ApiResponse<ContactMessage>> {
   await delay(300)
@@ -654,6 +696,8 @@ export async function getAvailableSlots(date: string): Promise<ApiResponse<strin
   })
   return { success: true, data: slots }
 }
+
+export const getAvailableBookingSlots = getAvailableSlots
 
 // ==========================================
 // ACCESS CODE APIs
