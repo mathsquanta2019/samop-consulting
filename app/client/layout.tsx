@@ -59,10 +59,12 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const [user, setUser] = useState<UserType | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const isLoginPage = pathname === "/client/login"
 
   const refreshProfile = useCallback(async () => {
+    if (typeof window === "undefined") return
     const userStr = localStorage.getItem("samop_user")
     if (userStr) {
       const userData = JSON.parse(userStr)
@@ -74,13 +76,19 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+
     // For login page, just set loading to false
     if (isLoginPage) {
       setIsLoading(false)
       return
     }
 
-    // Check auth synchronously
+    // Check auth
     const token = localStorage.getItem("samop_token")
     const userStr = localStorage.getItem("samop_user")
 
@@ -109,7 +117,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     } catch {
       window.location.href = "/client/login"
     }
-  }, [isLoginPage])
+  }, [mounted, isLoginPage])
 
   const handleLogout = () => {
     localStorage.removeItem("samop_token")
@@ -117,12 +125,23 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     window.location.href = "/client/login"
   }
 
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
+
   // For login page, render children directly
   if (isLoginPage) {
     return <>{children}</>
   }
 
-  // Show loading only briefly
+  // Show loading while checking auth
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -134,9 +153,16 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     )
   }
 
-  // If no user after loading, return null (redirect will happen)
+  // If no user after loading, show loading (redirect will happen)
   if (!user) {
-    return null
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Redirecting...</p>
+        </div>
+      </div>
+    )
   }
 
   const initials = `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()

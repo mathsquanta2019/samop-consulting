@@ -56,10 +56,17 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [admin, setAdmin] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
 
   const isLoginPage = pathname === "/admin/login"
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
+    if (!mounted) return
+
     if (isLoginPage) {
       setIsLoading(false)
       return
@@ -85,12 +92,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     } catch {
       window.location.href = "/admin/login"
     }
-  }, [isLoginPage])
+  }, [mounted, isLoginPage])
 
   const handleLogout = () => {
     localStorage.removeItem("samop_admin_token")
     localStorage.removeItem("samop_admin_user")
     window.location.href = "/admin/login"
+  }
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   if (isLoginPage) {
@@ -109,7 +127,14 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }
 
   if (!admin) {
-    return null
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Redirecting...</p>
+        </div>
+      </div>
+    )
   }
 
   const initials = `${admin.firstName[0]}${admin.lastName[0]}`.toUpperCase()
