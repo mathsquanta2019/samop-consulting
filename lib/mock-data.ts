@@ -18,6 +18,9 @@ import type {
   AppointmentFee,
   AccessCode,
   Payment,
+  ApplicationFormData,
+  DocumentUploadQueue,
+  ActivityLog,
 } from "./types"
 
 const getFutureDate = (daysFromNow: number): string => {
@@ -109,6 +112,7 @@ export const mockApplications: Application[] = [
     educationLevel: "masters",
     startDate: "2025-09-01",
     notes: "Strong candidate with excellent GRE scores.",
+    adminNotes: "Review SOP carefully - needs more research focus",
     createdAt: "2024-08-01T10:00:00Z",
     updatedAt: "2024-11-01T14:30:00Z",
   },
@@ -119,6 +123,7 @@ export const mockApplications: Application[] = [
     status: "documents_required",
     country: "USA",
     notes: "Awaiting financial documents.",
+    adminNotes: "Client needs to submit updated bank statement",
     createdAt: "2024-09-15T09:00:00Z",
     updatedAt: "2024-10-20T11:00:00Z",
   },
@@ -149,6 +154,7 @@ export const mockDocuments: Document[] = [
     url: "/documents/passport_johndoe.pdf",
     status: "approved",
     uploadedAt: "2024-08-05T10:00:00Z",
+    reviewedAt: "2024-08-06T14:00:00Z",
   },
   {
     id: "doc_002",
@@ -159,6 +165,7 @@ export const mockDocuments: Document[] = [
     url: "/documents/transcript_johndoe.pdf",
     status: "approved",
     uploadedAt: "2024-08-06T11:00:00Z",
+    reviewedAt: "2024-08-07T09:00:00Z",
   },
   {
     id: "doc_003",
@@ -168,8 +175,10 @@ export const mockDocuments: Document[] = [
     name: "SOP_MIT.pdf",
     url: "/documents/sop_johndoe.pdf",
     status: "requires_update",
-    feedback: "Please elaborate more on your research interests.",
+    feedback: "Please elaborate more on your research interests and career goals.",
+    adminNotes: "Good structure but needs more specificity about MIT programs",
     uploadedAt: "2024-08-10T09:00:00Z",
+    reviewedAt: "2024-08-12T15:00:00Z",
   },
   {
     id: "doc_004",
@@ -246,6 +255,9 @@ export const mockContactMessages: ContactMessage[] = [
     subject: "SEVIS Fee Payment Help",
     message: "I need assistance with paying my SEVIS fee. What documents do I need?",
     isRead: true,
+    reply:
+      "Thank you for reaching out! For SEVIS fee payment, you'll need your I-20 form and passport. Please book a consultation for detailed assistance.",
+    repliedAt: "2024-11-27T14:00:00Z",
     createdAt: "2024-11-27T10:00:00Z",
   },
 ]
@@ -320,20 +332,6 @@ export const mockChatMessages: ChatMessage[] = [
     message: "Hello! Welcome to SAMOP Consulting. How can I help you today?",
     timestamp: "2024-11-28T10:00:00Z",
   },
-  {
-    id: "chat_002",
-    senderId: "usr_001",
-    senderType: "client",
-    message: "I want to check the status of my application.",
-    timestamp: "2024-11-28T10:01:00Z",
-  },
-  {
-    id: "chat_003",
-    senderId: "bot",
-    senderType: "bot",
-    message: "I can help you with that! Your MIT application is currently under review. Would you like more details?",
-    timestamp: "2024-11-28T10:01:30Z",
-  },
 ]
 
 export const mockAvailability: AvailabilitySchedule[] = [
@@ -400,52 +398,7 @@ export const mockAvailability: AvailabilitySchedule[] = [
     createdAt: "2024-11-01T10:00:00Z",
     updatedAt: "2024-11-01T10:00:00Z",
   },
-  {
-    id: "avl_007",
-    date: getFutureDate(8),
-    slots: [{ start: "11:00", end: "15:00" }],
-    isRecurring: false,
-    createdAt: "2024-11-01T10:00:00Z",
-    updatedAt: "2024-11-01T10:00:00Z",
-  },
-  {
-    id: "avl_008",
-    date: getFutureDate(10),
-    slots: [
-      { start: "09:00", end: "13:00" },
-      { start: "14:00", end: "18:00" },
-    ],
-    isRecurring: false,
-    createdAt: "2024-11-01T10:00:00Z",
-    updatedAt: "2024-11-01T10:00:00Z",
-  },
 ]
-
-// Default Weekly Availability Template
-export const mockWeeklyAvailability = {
-  monday: [
-    { start: "09:00", end: "12:00" },
-    { start: "14:00", end: "17:00" },
-  ],
-  tuesday: [
-    { start: "09:00", end: "12:00" },
-    { start: "14:00", end: "17:00" },
-  ],
-  wednesday: [
-    { start: "10:00", end: "13:00" },
-    { start: "15:00", end: "18:00" },
-  ],
-  thursday: [
-    { start: "09:00", end: "12:00" },
-    { start: "14:00", end: "17:00" },
-  ],
-  friday: [
-    { start: "09:00", end: "12:00" },
-    { start: "14:00", end: "16:00" },
-  ],
-  saturday: [],
-  sunday: [],
-}
 
 export const mockAppointmentFees: AppointmentFee[] = [
   {
@@ -493,3 +446,127 @@ export const mockAccessCodes: AccessCode[] = [
 ]
 
 export const mockPayments: Payment[] = []
+
+// Mock Application Forms
+export const mockApplicationForms: ApplicationFormData[] = [
+  {
+    id: "form_001",
+    clientId: "usr_001",
+    status: "submitted",
+    serviceType: "education",
+    educationLevel: "masters",
+    personalInfo: {
+      firstName: "John",
+      lastName: "Doe",
+      dateOfBirth: "1995-05-15",
+      gender: "male",
+      nationality: "Nigerian",
+      countryOfResidence: "Nigeria",
+      address: "123 Main Street",
+      city: "Lagos",
+      state: "Lagos State",
+      postalCode: "100001",
+      phone: "+1 234 567 8901",
+      email: "john.doe@email.com",
+      maritalStatus: "single",
+    },
+    educationHistory: [
+      {
+        id: "edu_001",
+        level: "bachelors",
+        institution: "University of Lagos",
+        country: "Nigeria",
+        fieldOfStudy: "Computer Science",
+        startDate: "2013-09-01",
+        endDate: "2017-07-15",
+        gpa: "3.8",
+        graduated: true,
+        certificateObtained: "B.Sc. Computer Science",
+      },
+    ],
+    workExperience: [
+      {
+        id: "work_001",
+        companyName: "Tech Solutions Ltd",
+        position: "Software Developer",
+        country: "Nigeria",
+        startDate: "2018-01-15",
+        isCurrent: true,
+        responsibilities: "Full-stack development, team leadership, system architecture design",
+      },
+    ],
+    testScores: [
+      {
+        testType: "gre",
+        overallScore: "325",
+        datesTaken: "2024-06-15",
+        componentScores: { verbal: "165", quantitative: "160", writing: "4.5" },
+      },
+      {
+        testType: "ielts",
+        overallScore: "8.0",
+        datesTaken: "2024-05-20",
+        componentScores: { listening: "8.5", reading: "8.0", writing: "7.5", speaking: "8.0" },
+      },
+    ],
+    preferredCountries: ["USA", "Canada", "UK"],
+    preferredInstitutions: ["MIT", "Stanford", "Carnegie Mellon"],
+    preferredPrograms: ["Computer Science", "Artificial Intelligence"],
+    intakePreference: "Fall 2025",
+    statementOfPurpose: "I am passionate about advancing the field of artificial intelligence...",
+    requiredDocuments: [
+      { type: "passport", required: true, uploaded: true, documentId: "doc_001" },
+      { type: "transcript", required: true, uploaded: true, documentId: "doc_002" },
+      { type: "statement_of_purpose", required: true, uploaded: true, documentId: "doc_003" },
+      { type: "recommendation_letter", required: true, uploaded: false },
+      { type: "cv_resume", required: true, uploaded: false },
+    ],
+    adminReview: {
+      reviewedBy: "Admin User",
+      reviewedAt: "2024-11-15T10:00:00Z",
+      comments: "Strong application. SOP needs revision to focus more on research interests.",
+      status: "needs_revision",
+    },
+    createdAt: "2024-08-01T10:00:00Z",
+    updatedAt: "2024-11-15T10:00:00Z",
+    submittedAt: "2024-08-15T14:00:00Z",
+  },
+]
+
+// Mock Document Upload Queue
+export const mockDocumentQueue: DocumentUploadQueue[] = [
+  {
+    id: "queue_001",
+    clientId: "usr_001",
+    applicationId: "app_001",
+    fileName: "Recommendation_Letter_1.pdf",
+    fileSize: 245000,
+    documentType: "recommendation_letter",
+    status: "processing",
+    progress: 75,
+    createdAt: new Date().toISOString(),
+  },
+]
+
+// Mock Activity Logs
+export const mockActivityLogs: ActivityLog[] = [
+  {
+    id: "log_001",
+    entityType: "document",
+    entityId: "doc_003",
+    action: "status_updated",
+    performedBy: "Admin User",
+    performedByRole: "admin",
+    details: "Status changed from pending to requires_update",
+    createdAt: "2024-08-12T15:00:00Z",
+  },
+  {
+    id: "log_002",
+    entityType: "application",
+    entityId: "app_001",
+    action: "created",
+    performedBy: "John Doe",
+    performedByRole: "client",
+    createdAt: "2024-08-01T10:00:00Z",
+  },
+]

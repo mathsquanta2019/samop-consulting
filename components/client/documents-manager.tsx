@@ -1,14 +1,14 @@
 "use client"
 
 import type React from "react"
-
-import { useState, useRef } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Progress } from "@/components/ui/progress"
 import {
   Dialog,
   DialogContent,
@@ -17,9 +17,20 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
-import { FileText, Upload, CheckCircle, XCircle, Clock, AlertTriangle, Download } from "lucide-react"
-import type { ClientProfile, DocumentType, DocumentStatus } from "@/lib/types"
-import { uploadDocument } from "@/lib/api"
+import {
+  FileTextIcon,
+  UploadIcon,
+  CheckCircleIcon,
+  XCircleIcon,
+  ClockIcon,
+  AlertCircleIcon,
+  DownloadIcon,
+  TrashIcon,
+  MessageSquareIcon,
+  EyeIcon,
+} from "@/components/icons"
+import type { ClientProfile, DocumentType, DocumentStatus, DocumentUploadQueue } from "@/lib/types"
+import { uploadDocument, getDocumentQueue, deleteDocument } from "@/lib/api"
 
 interface DocumentsManagerProps {
   profile: ClientProfile
@@ -35,14 +46,26 @@ const documentTypes: { value: DocumentType; label: string }[] = [
   { value: "financial_statement", label: "Financial Statement" },
   { value: "english_proficiency", label: "English Proficiency (IELTS/TOEFL)" },
   { value: "photo", label: "Passport Photo" },
+  { value: "birth_certificate", label: "Birth Certificate" },
+  { value: "police_clearance", label: "Police Clearance" },
+  { value: "medical_report", label: "Medical Report" },
+  { value: "employment_letter", label: "Employment Letter" },
   { value: "other", label: "Other" },
 ]
 
-const statusConfig: Record<DocumentStatus, { icon: typeof CheckCircle; color: string; label: string }> = {
-  approved: { icon: CheckCircle, color: "text-green-500", label: "Approved" },
-  rejected: { icon: XCircle, color: "text-red-500", label: "Rejected" },
-  pending: { icon: Clock, color: "text-yellow-500", label: "Pending Review" },
-  requires_update: { icon: AlertTriangle, color: "text-orange-500", label: "Update Required" },
+const statusConfig: Record<
+  DocumentStatus,
+  { icon: typeof CheckCircleIcon; color: string; label: string; bgColor: string }
+> = {
+  approved: { icon: CheckCircleIcon, color: "text-green-600", label: "Approved", bgColor: "bg-green-100" },
+  rejected: { icon: XCircleIcon, color: "text-red-600", label: "Rejected", bgColor: "bg-red-100" },
+  pending: { icon: ClockIcon, color: "text-yellow-600", label: "Pending Review", bgColor: "bg-yellow-100" },
+  requires_update: {
+    icon: AlertCircleIcon,
+    color: "text-orange-600",
+    label: "Update Required",
+    bgColor: "bg-orange-100",
+  },
 }
 
 export function DocumentsManager({ profile }: DocumentsManagerProps) {
@@ -51,7 +74,20 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [docType, setDocType] = useState<DocumentType | "">("")
   const [selectedApp, setSelectedApp] = useState<string>("")
+  const [uploadQueue, setUploadQueue] = useState<DocumentUploadQueue[]>([])
+  const [uploadProgress, setUploadProgress] = useState(0)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    loadUploadQueue()
+  }, [])
+
+  const loadUploadQueue = async () => {
+    const result = await getDocumentQueue(profile.id)
+    if (result.success && result.data) {
+      setUploadQueue(result.data)
+    }
+  }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -63,6 +99,19 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
     if (!selectedFile || !docType || !selectedApp) return
 
     setIsUploading(true)
+    setUploadProgress(0)
+
+    // Simulate upload progress
+    const progressInterval = setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(progressInterval)
+          return prev
+        }
+        return prev + 10
+      })
+    }, 200)
+
     await uploadDocument({
       applicationId: selectedApp,
       clientId: profile.id,
@@ -71,11 +120,30 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
       file: selectedFile,
     })
 
-    setIsUploading(false)
-    setIsDialogOpen(false)
-    setSelectedFile(null)
-    setDocType("")
-    setSelectedApp("")
+    clearInterval(progressInterval)
+    setUploadProgress(100)
+
+    setTimeout(() => {
+      setIsUploading(false)
+      setIsDialogOpen(false)
+      setSelectedFile(null)
+      setDocType("")
+      setSelectedApp("")
+      setUploadProgress(0)
+    }, 500)
+  }
+
+  const handleDelete = async (docId: string) => {
+    await deleteDocument(docId)
+    // Refresh would happen here
+  }
+
+  // Group documents by status for better organization
+  const documentsByStatus = {
+    requires_update: profile.documents.filter((d) => d.status === "requires_update"),
+    pending: profile.documents.filter((d) => d.status === "pending"),
+    approved: profile.documents.filter((d) => d.status === "approved"),
+    rejected: profile.documents.filter((d) => d.status === "rejected"),
   }
 
   return (
@@ -88,7 +156,7 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-primary text-primary-foreground">
-              <Upload className="mr-2 h-4 w-4" />
+              <UploadIcon className="mr-2 h-4 w-4" />
               Upload Document
             </Button>
           </DialogTrigger>
@@ -145,18 +213,28 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
                   />
                   {selectedFile ? (
                     <div className="flex items-center justify-center gap-2">
-                      <FileText className="h-5 w-5 text-primary" />
+                      <FileTextIcon className="h-5 w-5 text-primary" />
                       <span className="text-sm font-medium">{selectedFile.name}</span>
                     </div>
                   ) : (
                     <>
-                      <Upload className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                      <UploadIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
                       <p className="text-sm text-muted-foreground">Click to select or drag and drop</p>
                       <p className="text-xs text-muted-foreground mt-1">PDF, DOC, DOCX, JPG, PNG (max 10MB)</p>
                     </>
                   )}
                 </div>
               </div>
+
+              {isUploading && (
+                <div className="space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Uploading...</span>
+                    <span>{uploadProgress}%</span>
+                  </div>
+                  <Progress value={uploadProgress} className="h-2" />
+                </div>
+              )}
 
               <Button
                 onClick={handleUpload}
@@ -170,6 +248,36 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
         </Dialog>
       </div>
 
+      {/* Upload Queue - Shows documents being processed */}
+      {uploadQueue.length > 0 && (
+        <Card className="bg-card border-blue-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <ClockIcon className="h-4 w-4 text-blue-600" />
+              Upload Queue
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {uploadQueue.map((item) => (
+                <div key={item.id} className="flex items-center gap-4 p-3 rounded-lg bg-blue-50">
+                  <FileTextIcon className="h-5 w-5 text-blue-600" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{item.fileName}</p>
+                    <p className="text-xs text-muted-foreground capitalize">
+                      {item.documentType.replace(/_/g, " ")} • {item.status}
+                    </p>
+                  </div>
+                  <div className="w-24">
+                    <Progress value={item.progress} className="h-2" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Document Stats */}
       <div className="grid gap-4 md:grid-cols-4">
         {Object.entries(statusConfig).map(([status, config]) => {
@@ -179,7 +287,9 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
             <Card key={status} className="bg-card">
               <CardContent className="pt-6">
                 <div className="flex items-center gap-3">
-                  <Icon className={`h-5 w-5 ${config.color}`} />
+                  <div className={`p-2 rounded-lg ${config.bgColor}`}>
+                    <Icon className={`h-5 w-5 ${config.color}`} />
+                  </div>
                   <div>
                     <p className="text-2xl font-bold text-card-foreground">{count}</p>
                     <p className="text-sm text-muted-foreground">{config.label}</p>
@@ -191,7 +301,69 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
         })}
       </div>
 
-      {/* Documents List */}
+      {/* Documents Requiring Action - Shown First */}
+      {documentsByStatus.requires_update.length > 0 && (
+        <Card className="bg-card border-orange-200">
+          <CardHeader>
+            <CardTitle className="text-card-foreground flex items-center gap-2">
+              <AlertCircleIcon className="h-5 w-5 text-orange-600" />
+              Action Required
+            </CardTitle>
+            <CardDescription>These documents need your attention</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {documentsByStatus.requires_update.map((doc) => (
+                <div key={doc.id} className="p-4 rounded-lg border-2 border-orange-200 bg-orange-50">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-100">
+                        <FileTextIcon className="h-6 w-6 text-orange-600" />
+                      </div>
+                      <div>
+                        <p className="font-medium text-card-foreground">{doc.name}</p>
+                        <p className="text-sm text-muted-foreground capitalize">
+                          {doc.type.replace(/_/g, " ")} • {new Date(doc.uploadedAt).toLocaleDateString()}
+                        </p>
+                        {doc.feedback && (
+                          <div className="mt-2 p-3 rounded-lg bg-white border border-orange-200">
+                            <div className="flex items-start gap-2">
+                              <MessageSquareIcon className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-xs font-medium text-orange-700">Admin Feedback:</p>
+                                <p className="text-sm text-orange-800">{doc.feedback}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {doc.adminNotes && (
+                          <div className="mt-2 p-3 rounded-lg bg-white border border-orange-200">
+                            <div className="flex items-start gap-2">
+                              <MessageSquareIcon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                              <div>
+                                <p className="text-xs font-medium text-muted-foreground">Additional Notes:</p>
+                                <p className="text-sm">{doc.adminNotes}</p>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" className="bg-orange-600 text-white hover:bg-orange-700">
+                        <UploadIcon className="mr-2 h-3 w-3" />
+                        Re-upload
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* All Documents List */}
       <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-card-foreground">All Documents</CardTitle>
@@ -200,56 +372,69 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
         <CardContent>
           {profile.documents.length === 0 ? (
             <div className="text-center py-12">
-              <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+              <FileTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-medium text-card-foreground mb-2">No Documents</h3>
               <p className="text-muted-foreground">Upload your first document to get started.</p>
             </div>
           ) : (
             <div className="space-y-4">
-              {profile.documents.map((doc) => {
-                const config = statusConfig[doc.status]
-                const Icon = config.icon
+              {profile.documents
+                .filter((d) => d.status !== "requires_update")
+                .map((doc) => {
+                  const config = statusConfig[doc.status]
+                  const Icon = config.icon
 
-                return (
-                  <div
-                    key={doc.id}
-                    className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                        <FileText className="h-6 w-6 text-muted-foreground" />
+                  return (
+                    <div
+                      key={doc.id}
+                      className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
+                    >
+                      <div className="flex items-start gap-4">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
+                          <FileTextIcon className="h-6 w-6 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="font-medium text-card-foreground">{doc.name}</p>
+                          <p className="text-sm text-muted-foreground capitalize">
+                            {doc.type.replace(/_/g, " ")} • {new Date(doc.uploadedAt).toLocaleDateString()}
+                          </p>
+                          {doc.feedback && (
+                            <div className="mt-2 flex items-start gap-2 text-sm">
+                              <MessageSquareIcon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+                              <span className="text-muted-foreground">{doc.feedback}</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium text-card-foreground">{doc.name}</p>
-                        <p className="text-sm text-muted-foreground capitalize">
-                          {doc.type.replace(/_/g, " ")} • {new Date(doc.uploadedAt).toLocaleDateString()}
-                        </p>
-                        {doc.feedback && <p className="text-sm text-orange-600 mt-1">Feedback: {doc.feedback}</p>}
+                      <div className="flex items-center gap-3">
+                        <Badge
+                          variant="secondary"
+                          className={`${config.bgColor} ${config.color.replace("text-", "text-")}`}
+                        >
+                          <Icon className={`h-3 w-3 mr-1 ${config.color}`} />
+                          {config.label}
+                        </Badge>
+                        <div className="flex items-center gap-1">
+                          <Button variant="ghost" size="icon" title="View">
+                            <EyeIcon className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" title="Download">
+                            <DownloadIcon className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="text-red-500 hover:text-red-600"
+                            title="Delete"
+                            onClick={() => handleDelete(doc.id)}
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Badge
-                        variant="secondary"
-                        className={`${
-                          doc.status === "approved"
-                            ? "bg-green-100 text-green-700"
-                            : doc.status === "rejected"
-                              ? "bg-red-100 text-red-700"
-                              : doc.status === "requires_update"
-                                ? "bg-orange-100 text-orange-700"
-                                : "bg-yellow-100 text-yellow-700"
-                        }`}
-                      >
-                        <Icon className={`h-3 w-3 mr-1 ${config.color}`} />
-                        {config.label}
-                      </Badge>
-                      <Button variant="ghost" size="icon">
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                )
-              })}
+                  )
+                })}
             </div>
           )}
         </CardContent>

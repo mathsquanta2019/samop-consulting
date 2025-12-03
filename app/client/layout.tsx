@@ -25,6 +25,7 @@ import {
   UserIcon,
   SettingsIcon,
   ChevronDownIcon,
+  PlusIcon,
 } from "@/components/icons"
 import type { ClientProfile, User as UserType } from "@/lib/types"
 import { getClientProfile } from "@/lib/api"
@@ -46,6 +47,7 @@ export const useClient = () => useContext(ClientContext)
 
 const navItems = [
   { href: "/client/dashboard", label: "Dashboard", icon: DashboardIcon },
+  { href: "/client/apply", label: "Apply", icon: PlusIcon },
   { href: "/client/applications", label: "Applications", icon: FileTextIcon },
   { href: "/client/documents", label: "Documents", icon: FolderIcon },
   { href: "/client/appointments", label: "Appointments", icon: CalendarIcon },

@@ -35,6 +35,7 @@ export interface Service {
 
 // Application & Process Types
 export type ApplicationStatus =
+  | "draft"
   | "pending"
   | "documents_required"
   | "under_review"
@@ -57,6 +58,7 @@ export interface Application {
   educationLevel?: EducationLevel
   startDate?: string
   notes: string
+  adminNotes?: string
   createdAt: string
   updatedAt: string
 }
@@ -72,6 +74,11 @@ export type DocumentType =
   | "financial_statement"
   | "english_proficiency"
   | "photo"
+  | "birth_certificate"
+  | "marriage_certificate"
+  | "police_clearance"
+  | "medical_report"
+  | "employment_letter"
   | "other"
 
 export type DocumentStatus = "pending" | "approved" | "rejected" | "requires_update"
@@ -85,7 +92,10 @@ export interface Document {
   url: string
   status: DocumentStatus
   feedback?: string
+  adminNotes?: string
   uploadedAt: string
+  reviewedAt?: string
+  reviewedBy?: string
 }
 
 // Appointment Types
@@ -102,7 +112,7 @@ export interface Appointment {
   status: AppointmentStatus
   date: string
   time: string
-  duration: number // in minutes
+  duration: number
   notes?: string
   createdAt: string
 }
@@ -116,6 +126,8 @@ export interface ContactMessage {
   subject: string
   message: string
   isRead: boolean
+  reply?: string
+  repliedAt?: string
   createdAt: string
 }
 
@@ -192,16 +204,16 @@ export interface PaginatedResponse<T> {
 
 // Availability types for admin scheduling
 export interface TimeSlot {
-  start: string // HH:MM format
-  end: string // HH:MM format
+  start: string
+  end: string
 }
 
 export interface AvailabilitySchedule {
   id: string
-  date: string // YYYY-MM-DD
+  date: string
   slots: TimeSlot[]
   isRecurring: boolean
-  dayOfWeek?: number // 0-6, Sunday-Saturday
+  dayOfWeek?: number
   createdAt: string
   updatedAt: string
 }
@@ -245,4 +257,142 @@ export interface BookingSlot {
   date: string
   time: string
   available: boolean
+}
+
+// ==========================================
+// APPLICATION FORM TYPES
+// ==========================================
+
+export interface PersonalInfo {
+  firstName: string
+  lastName: string
+  middleName?: string
+  dateOfBirth: string
+  gender: "male" | "female" | "other"
+  nationality: string
+  countryOfResidence: string
+  address: string
+  city: string
+  state: string
+  postalCode: string
+  phone: string
+  email: string
+  maritalStatus: "single" | "married" | "divorced" | "widowed"
+}
+
+export interface EducationHistory {
+  id: string
+  level: "high_school" | "bachelors" | "masters" | "phd" | "diploma" | "certificate"
+  institution: string
+  country: string
+  fieldOfStudy: string
+  startDate: string
+  endDate: string
+  gpa?: string
+  graduated: boolean
+  certificateObtained: string
+}
+
+export interface WorkExperience {
+  id: string
+  companyName: string
+  position: string
+  country: string
+  startDate: string
+  endDate?: string
+  isCurrent: boolean
+  responsibilities: string
+}
+
+export interface TestScore {
+  testType: "ielts" | "toefl" | "gre" | "gmat" | "sat" | "duolingo" | "pte" | "other"
+  overallScore: string
+  datesTaken: string
+  expiryDate?: string
+  componentScores?: Record<string, string>
+}
+
+export interface ApplicationFormData {
+  id: string
+  clientId: string
+  status: "draft" | "submitted" | "under_review" | "approved" | "rejected"
+  serviceType: ServiceType
+  educationLevel?: EducationLevel
+
+  // Personal Information
+  personalInfo: PersonalInfo
+
+  // Education History
+  educationHistory: EducationHistory[]
+
+  // Work Experience (for Masters/PhD)
+  workExperience?: WorkExperience[]
+
+  // Test Scores
+  testScores?: TestScore[]
+
+  // Program Preferences
+  preferredCountries: string[]
+  preferredInstitutions?: string[]
+  preferredPrograms?: string[]
+  intakePreference: string
+
+  // Statement of Purpose
+  statementOfPurpose?: string
+
+  // Immigration Specific
+  immigrationInfo?: {
+    purposeOfTravel: string
+    previousVisaRejections: boolean
+    rejectionDetails?: string
+    travelHistory?: string
+    sponsor: "self" | "family" | "scholarship" | "employer"
+    sponsorDetails?: string
+  }
+
+  // Required Documents Checklist
+  requiredDocuments: {
+    type: DocumentType
+    required: boolean
+    uploaded: boolean
+    documentId?: string
+  }[]
+
+  // Admin Review
+  adminReview?: {
+    reviewedBy: string
+    reviewedAt: string
+    comments: string
+    status: "pending" | "approved" | "needs_revision" | "rejected"
+  }
+
+  createdAt: string
+  updatedAt: string
+  submittedAt?: string
+}
+
+// Document Upload Queue
+export interface DocumentUploadQueue {
+  id: string
+  clientId: string
+  applicationId: string
+  fileName: string
+  fileSize: number
+  documentType: DocumentType
+  status: "uploading" | "processing" | "completed" | "failed"
+  progress: number
+  error?: string
+  createdAt: string
+}
+
+// Activity Log
+export interface ActivityLog {
+  id: string
+  entityType: "client" | "application" | "document" | "appointment"
+  entityId: string
+  action: string
+  performedBy: string
+  performedByRole: "client" | "admin"
+  details?: string
+  createdAt: string
 }

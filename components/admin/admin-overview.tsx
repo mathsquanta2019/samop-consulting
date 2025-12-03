@@ -1,14 +1,5 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import {
-  UsersIcon,
-  FileTextIcon,
-  ClockIcon,
-  CalendarIcon,
-  TrendingUpIcon,
-  CheckCircleIcon,
-  UserPlusIcon,
-} from "@/components/icons"
+import { UsersIcon, FileTextIcon, ClockIcon, CalendarIcon, TrendingUpIcon, CheckCircleIcon } from "@/components/icons"
 import type { DashboardStats } from "@/lib/types"
 import Link from "next/link"
 
@@ -19,17 +10,9 @@ interface AdminOverviewProps {
 export function AdminOverview({ stats }: AdminOverviewProps) {
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
-          <p className="text-muted-foreground">Overview of all clients, applications, and activities.</p>
-        </div>
-        <Link href="/admin/clients">
-          <Button className="bg-primary text-primary-foreground">
-            <UserPlusIcon className="mr-2 h-4 w-4" />
-            Onboard New Client
-          </Button>
-        </Link>
+      <div>
+        <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
+        <p className="text-muted-foreground">Overview of all clients, applications, and activities.</p>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
