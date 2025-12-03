@@ -135,7 +135,6 @@ export function ChatBot() {
     setInputValue("")
     setIsTyping(true)
 
-    // Simulate bot thinking
     setTimeout(() => {
       const botMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -159,7 +158,7 @@ export function ChatBot() {
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 z-50"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-secondary text-secondary-foreground shadow-xl hover:bg-secondary/90 z-[100] border-2 border-secondary-foreground/20"
         size="icon"
       >
         <MessageCircle className="h-6 w-6" />
@@ -171,7 +170,7 @@ export function ChatBot() {
   return (
     <Card
       className={cn(
-        "fixed bottom-6 right-6 z-50 shadow-2xl transition-all duration-300",
+        "fixed bottom-6 right-6 z-[100] shadow-2xl transition-all duration-300 border-2",
         isMinimized ? "w-72 h-14" : "w-[380px] h-[500px]",
       )}
     >

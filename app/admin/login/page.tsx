@@ -29,21 +29,29 @@ export default function AdminLoginPage() {
     setIsLoading(true)
     setError("")
 
-    const result = await loginUser(formData.email, formData.password)
+    try {
+      const result = await loginUser(formData.email, formData.password)
 
-    if (result.success && result.data) {
-      if (result.data.user.role !== "admin") {
-        setError("Access denied. Admin privileges required.")
+      if (result.success && result.data) {
+        if (result.data.user.role !== "admin") {
+          setError("Access denied. Admin privileges required.")
+          setIsLoading(false)
+          return
+        }
+
+        localStorage.setItem("samop_admin_token", result.data.token)
+        localStorage.setItem("samop_admin_user", JSON.stringify(result.data.user))
+
+        // Use window.location for a full page navigation
+        window.location.href = "/admin/dashboard"
+      } else {
+        setError(result.error || "Invalid credentials. Please try again.")
         setIsLoading(false)
-        return
       }
-      localStorage.setItem("samop_admin_token", result.data.token)
-      localStorage.setItem("samop_admin_user", JSON.stringify(result.data.user))
-      router.push("/admin/dashboard")
-    } else {
-      setError(result.error || "Invalid credentials. Please try again.")
+    } catch (err) {
+      setError("An error occurred. Please try again.")
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   return (
@@ -85,6 +93,7 @@ export default function AdminLoginPage() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="admin@samopconsulting.com"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
@@ -98,11 +107,13 @@ export default function AdminLoginPage() {
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="Enter your password"
                     required
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    disabled={isLoading}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -114,7 +125,6 @@ export default function AdminLoginPage() {
               </Button>
             </form>
 
-            {/* Demo credentials hint */}
             <div className="mt-6 p-4 rounded-lg bg-muted/50">
               <p className="text-xs text-muted-foreground text-center">
                 <strong>Demo:</strong> Use email{" "}

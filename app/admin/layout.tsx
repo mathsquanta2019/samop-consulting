@@ -55,61 +55,49 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [admin, setAdmin] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [authChecked, setAuthChecked] = useState(false)
 
   const isLoginPage = pathname === "/admin/login"
 
   useEffect(() => {
-    const checkAuth = async () => {
-      // Skip auth check for login page
-      if (isLoginPage) {
-        setIsLoading(false)
-        setAuthChecked(true)
-        return
-      }
-
-      try {
-        const token = localStorage.getItem("samop_admin_token")
-        const userStr = localStorage.getItem("samop_admin_user")
-
-        if (!token || !userStr) {
-          router.replace("/admin/login")
-          return
-        }
-
-        const user = JSON.parse(userStr)
-
-        // Verify admin role
-        if (user.role !== "admin") {
-          router.replace("/admin/login")
-          return
-        }
-
-        setAdmin(user)
-        setAuthChecked(true)
-      } catch (error) {
-        console.error("Auth check failed:", error)
-        router.replace("/admin/login")
-        return
-      } finally {
-        setIsLoading(false)
-      }
+    if (isLoginPage) {
+      setIsLoading(false)
+      return
     }
 
-    checkAuth()
-  }, [router, isLoginPage])
+    const token = localStorage.getItem("samop_admin_token")
+    const userStr = localStorage.getItem("samop_admin_user")
+
+    if (!token || !userStr) {
+      window.location.href = "/admin/login"
+      return
+    }
+
+    try {
+      const user = JSON.parse(userStr)
+
+      if (user.role !== "admin") {
+        window.location.href = "/admin/login"
+        return
+      }
+
+      setAdmin(user)
+      setIsLoading(false)
+    } catch (error) {
+      window.location.href = "/admin/login"
+    }
+  }, [isLoginPage])
 
   const handleLogout = () => {
     localStorage.removeItem("samop_admin_token")
     localStorage.removeItem("samop_admin_user")
-    router.replace("/admin/login")
+    window.location.href = "/admin/login"
   }
 
   if (isLoginPage) {
     return <>{children}</>
   }
 
-  if (isLoading || !authChecked) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">

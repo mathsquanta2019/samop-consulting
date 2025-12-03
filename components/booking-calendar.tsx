@@ -29,12 +29,10 @@ export function BookingCalendar({ onSelectSlot, selectedDate, selectedTime }: Bo
     return t
   }, [])
 
-  // Load month availability for tooltips
   useEffect(() => {
     loadMonthAvailability()
   }, [currentMonth])
 
-  // Load slots when a day is selected
   useEffect(() => {
     if (selectedDay) {
       loadSlots(selectedDay)
@@ -88,7 +86,6 @@ export function BookingCalendar({ onSelectSlot, selectedDate, selectedTime }: Bo
     const availability = monthAvailability.find((a) => a.date === dateStr)
     if (!availability) return 0
 
-    // Count total 30-min slots from all time ranges
     let count = 0
     availability.slots.forEach((slot) => {
       const [startH, startM] = slot.start.split(":").map(Number)
@@ -105,7 +102,6 @@ export function BookingCalendar({ onSelectSlot, selectedDate, selectedTime }: Bo
     return monthAvailability.some((a) => a.date === dateStr)
   }
 
-  // Calendar generation
   const generateCalendarDays = () => {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth()
@@ -116,12 +112,10 @@ export function BookingCalendar({ onSelectSlot, selectedDate, selectedTime }: Bo
 
     const days: (Date | null)[] = []
 
-    // Add empty cells for days before the first day of the month
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null)
     }
 
-    // Add the days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       days.push(new Date(year, month, day))
     }
@@ -145,55 +139,43 @@ export function BookingCalendar({ onSelectSlot, selectedDate, selectedTime }: Bo
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
 
   return (
-    <TooltipProvider>
-      <div className="grid md:grid-cols-2 gap-6">
+    <TooltipProvider delayDuration={200}>
+      <div className="grid lg:grid-cols-2 gap-6">
         {/* Calendar */}
-        <Card className="bg-card">
+        <Card className="bg-card border">
           <CardHeader className="pb-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-card-foreground">Select Date</CardTitle>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 bg-transparent"
-                  onClick={() => navigateMonth("prev")}
-                >
+              <CardTitle className="text-lg text-card-foreground">Select Date</CardTitle>
+              <div className="flex items-center gap-1">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigateMonth("prev")}>
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
-                <span className="text-sm font-medium min-w-[140px] text-center">
+                <span className="text-sm font-medium min-w-[120px] text-center">
                   {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
                 </span>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  className="h-8 w-8 bg-transparent"
-                  onClick={() => navigateMonth("next")}
-                >
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => navigateMonth("next")}>
                   <ChevronRight className="h-4 w-4" />
                 </Button>
               </div>
             </div>
-            <CardDescription>Hover over a date to see available slots. Past dates are disabled.</CardDescription>
+            <CardDescription className="text-sm">Hover over highlighted dates to see availability</CardDescription>
           </CardHeader>
-          <CardContent>
-            {/* Week day headers */}
+          <CardContent className="pb-6">
             <div className="grid grid-cols-7 gap-1 mb-2">
               {weekDays.map((day) => (
                 <div
                   key={day}
-                  className="h-10 flex items-center justify-center text-xs font-medium text-muted-foreground"
+                  className="h-8 flex items-center justify-center text-xs font-semibold text-muted-foreground uppercase tracking-wide"
                 >
-                  {day}
+                  {day.slice(0, 2)}
                 </div>
               ))}
             </div>
 
-            {/* Calendar days */}
             <div className="grid grid-cols-7 gap-1">
               {days.map((date, index) => {
                 if (!date) {
-                  return <div key={`empty-${index}`} className="h-10" />
+                  return <div key={`empty-${index}`} className="aspect-square" />
                 }
 
                 const isPast = isPastDate(date)
@@ -208,32 +190,35 @@ export function BookingCalendar({ onSelectSlot, selectedDate, selectedTime }: Bo
                     onClick={() => handleDayClick(date)}
                     disabled={isPast}
                     className={cn(
-                      "h-10 w-full rounded-lg text-sm font-medium transition-all relative",
-                      "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-                      isPast && "text-muted-foreground/40 cursor-not-allowed",
-                      !isPast && !isSelected && "hover:bg-accent",
-                      !isPast && hasSlots && !isSelected && "bg-primary/10 text-primary font-semibold",
-                      isSelected && "bg-primary text-primary-foreground",
-                      isToday && !isSelected && "ring-2 ring-primary ring-offset-2",
+                      "aspect-square w-full rounded-lg text-sm font-medium transition-all relative flex items-center justify-center",
+                      "focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-1",
+                      isPast && "text-muted-foreground/30 cursor-not-allowed bg-transparent",
+                      !isPast && !isSelected && !hasSlots && "hover:bg-muted text-foreground",
+                      !isPast &&
+                        hasSlots &&
+                        !isSelected &&
+                        "bg-primary/10 text-primary hover:bg-primary/20 font-semibold",
+                      isSelected && "bg-primary text-primary-foreground shadow-md",
+                      isToday && !isSelected && "ring-2 ring-primary/50",
                     )}
                   >
-                    {date.getDate()}
-                    {/* Availability indicator dot */}
+                    <span>{date.getDate()}</span>
                     {!isPast && hasSlots && !isSelected && (
-                      <span className="absolute bottom-1 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full bg-primary" />
+                      <span className="absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-primary" />
                     )}
                   </button>
                 )
 
-                // Wrap with tooltip only for dates that have availability
                 if (!isPast && hasSlots) {
                   return (
                     <Tooltip key={date.toISOString()}>
                       <TooltipTrigger asChild>{dayButton}</TooltipTrigger>
-                      <TooltipContent>
-                        <p className="font-medium">{slotsCount} slots available</p>
-                        <p className="text-xs text-muted-foreground">
-                          {date.toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
+                      <TooltipContent side="top" className="bg-foreground text-background">
+                        <p className="font-semibold">
+                          {slotsCount} slot{slotsCount !== 1 ? "s" : ""} available
+                        </p>
+                        <p className="text-xs opacity-80">
+                          {date.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}
                         </p>
                       </TooltipContent>
                     </Tooltip>
@@ -245,19 +230,19 @@ export function BookingCalendar({ onSelectSlot, selectedDate, selectedTime }: Bo
             </div>
 
             {/* Legend */}
-            <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-4 text-xs">
+            <div className="mt-4 pt-4 border-t flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded bg-primary/10 relative">
-                  <span className="absolute bottom-0 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-primary" />
+                <div className="h-4 w-4 rounded bg-primary/10 flex items-center justify-center">
+                  <span className="h-1 w-1 rounded-full bg-primary" />
                 </div>
                 <span className="text-muted-foreground">Available</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded bg-primary" />
+                <div className="h-4 w-4 rounded bg-primary" />
                 <span className="text-muted-foreground">Selected</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="h-3 w-3 rounded border-2 border-primary" />
+                <div className="h-4 w-4 rounded ring-2 ring-primary/50" />
                 <span className="text-muted-foreground">Today</span>
               </div>
             </div>
@@ -265,33 +250,39 @@ export function BookingCalendar({ onSelectSlot, selectedDate, selectedTime }: Bo
         </Card>
 
         {/* Time Slots */}
-        <Card className="bg-card">
+        <Card className="bg-card border">
           <CardHeader>
-            <CardTitle className="text-card-foreground">Available Times</CardTitle>
+            <CardTitle className="text-lg text-card-foreground flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Available Times
+            </CardTitle>
             <CardDescription>
               {selectedDay
-                ? `Times for ${selectedDay.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })}`
+                ? selectedDay.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
                 : "Select a date to see available times"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             {!selectedDay ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>Select a date to view available time slots</p>
+              <div className="text-center py-12 text-muted-foreground">
+                <div className="h-16 w-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                  <Clock className="h-8 w-8 opacity-50" />
+                </div>
+                <p className="font-medium">No date selected</p>
+                <p className="text-sm mt-1">Click on a highlighted date to view time slots</p>
               </div>
             ) : isLoadingSlots ? (
-              <div className="text-center py-8">
+              <div className="text-center py-12">
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
-                <p className="mt-4 text-muted-foreground">Loading available times...</p>
+                <p className="mt-4 text-muted-foreground">Loading times...</p>
               </div>
             ) : availableSlots.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No available slots for this date.</p>
-                <p className="text-sm mt-2">Please select another date.</p>
+              <div className="text-center py-12 text-muted-foreground">
+                <p className="font-medium">No slots available</p>
+                <p className="text-sm mt-1">Please select another date</p>
               </div>
             ) : (
-              <div className="grid grid-cols-3 gap-2 max-h-[300px] overflow-y-auto pr-1">
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-[280px] overflow-y-auto pr-1">
                 {availableSlots.map((slot) => {
                   const isSelected = selectedDate === slot.date && selectedTime === slot.time
                   return (
@@ -299,9 +290,9 @@ export function BookingCalendar({ onSelectSlot, selectedDate, selectedTime }: Bo
                       key={`${slot.date}-${slot.time}`}
                       variant={isSelected ? "default" : "outline"}
                       className={cn(
-                        "h-11",
-                        !slot.available && "opacity-50 cursor-not-allowed line-through",
-                        isSelected && "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2",
+                        "h-12 text-sm font-medium",
+                        !slot.available && "opacity-40 cursor-not-allowed line-through",
+                        isSelected && "ring-2 ring-primary ring-offset-2",
                       )}
                       disabled={!slot.available}
                       onClick={() => handleTimeSelect(slot)}
@@ -314,19 +305,8 @@ export function BookingCalendar({ onSelectSlot, selectedDate, selectedTime }: Bo
             )}
 
             {selectedDay && availableSlots.length > 0 && (
-              <div className="mt-4 pt-4 border-t flex items-center gap-4 text-xs">
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded bg-primary" />
-                  <span className="text-muted-foreground">Selected</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded border border-border" />
-                  <span className="text-muted-foreground">Available</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded bg-muted opacity-50" />
-                  <span className="text-muted-foreground">Booked</span>
-                </div>
+              <div className="mt-4 pt-4 border-t">
+                <p className="text-xs text-muted-foreground text-center">All times shown in Eastern Time (ET)</p>
               </div>
             )}
           </CardContent>

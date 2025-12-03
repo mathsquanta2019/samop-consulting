@@ -57,7 +57,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const [profile, setProfile] = useState<ClientProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [authChecked, setAuthChecked] = useState(false)
 
   const isLoginPage = pathname === "/client/login"
 
@@ -77,58 +76,43 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
-    const checkAuth = async () => {
-      // Skip auth check for login page
-      if (isLoginPage) {
-        setIsLoading(false)
-        setAuthChecked(true)
-        return
-      }
-
-      try {
-        const token = localStorage.getItem("samop_token")
-        const userStr = localStorage.getItem("samop_user")
-
-        if (!token || !userStr) {
-          router.replace("/client/login")
-          return
-        }
-
-        const user = JSON.parse(userStr)
-
-        // Verify user role
-        if (user.role !== "client") {
-          router.replace("/client/login")
-          return
-        }
-
-        const result = await getClientProfile(user.id)
-
-        if (result.success && result.data) {
-          setProfile(result.data)
-          setAuthChecked(true)
-        } else {
-          localStorage.removeItem("samop_token")
-          localStorage.removeItem("samop_user")
-          router.replace("/client/login")
-          return
-        }
-      } catch (error) {
-        console.error("Auth check failed:", error)
-        router.replace("/client/login")
-        return
-      } finally {
-        setIsLoading(false)
-      }
+    if (isLoginPage) {
+      setIsLoading(false)
+      return
     }
 
-    checkAuth()
-  }, [router, isLoginPage])
+    const token = localStorage.getItem("samop_token")
+    const userStr = localStorage.getItem("samop_user")
+
+    if (!token || !userStr) {
+      window.location.href = "/client/login"
+      return
+    }
+
+    try {
+      const user = JSON.parse(userStr)
+
+      if (user.role !== "client") {
+        window.location.href = "/client/login"
+        return
+      }
+
+      // Load profile in background, don't block rendering
+      getClientProfile(user.id).then((result) => {
+        if (result.success && result.data) {
+          setProfile(result.data)
+        }
+        setIsLoading(false)
+      })
+    } catch (error) {
+      window.location.href = "/client/login"
+    }
+  }, [isLoginPage])
 
   const handleLogout = () => {
     localStorage.removeItem("samop_token")
     localStorage.removeItem("samop_user")
-    router.replace("/client/login")
+    window.location.href = "/client/login"
   }
 
   // For login page, render children directly
@@ -136,7 +120,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return <>{children}</>
   }
 
-  if (isLoading || !authChecked) {
+  // Show minimal loading state
+  if (isLoading && !profile) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -147,11 +132,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     )
   }
 
-  if (!profile) {
-    return null
-  }
-
-  const initials = `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase()
+  const initials = profile ? `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase() : "U"
 
   return (
     <ClientContext.Provider value={{ profile, isLoading, refreshProfile }}>
@@ -206,7 +187,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-primary text-primary-foreground text-sm">{initials}</AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:block text-sm font-medium">{profile.firstName}</span>
+                  <span className="hidden sm:block text-sm font-medium">{profile?.firstName || "User"}</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>

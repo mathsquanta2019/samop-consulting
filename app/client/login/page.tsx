@@ -29,17 +29,23 @@ export default function ClientLoginPage() {
     setIsLoading(true)
     setError("")
 
-    const result = await loginUser(formData.email, formData.password)
+    try {
+      const result = await loginUser(formData.email, formData.password)
 
-    if (result.success && result.data) {
-      // Store token in localStorage (in production, use httpOnly cookies)
-      localStorage.setItem("samop_token", result.data.token)
-      localStorage.setItem("samop_user", JSON.stringify(result.data.user))
-      router.push("/client/dashboard")
-    } else {
-      setError(result.error || "Invalid credentials. Please try again.")
+      if (result.success && result.data) {
+        localStorage.setItem("samop_token", result.data.token)
+        localStorage.setItem("samop_user", JSON.stringify(result.data.user))
+
+        // Use window.location for a full page navigation to ensure layout re-renders
+        window.location.href = "/client/dashboard"
+      } else {
+        setError(result.error || "Invalid credentials. Please try again.")
+        setIsLoading(false)
+      }
+    } catch (err) {
+      setError("An error occurred. Please try again.")
+      setIsLoading(false)
     }
-    setIsLoading(false)
   }
 
   return (
@@ -78,6 +84,7 @@ export default function ClientLoginPage() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   placeholder="john@example.com"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
@@ -91,11 +98,13 @@ export default function ClientLoginPage() {
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     placeholder="Enter your password"
                     required
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    disabled={isLoading}
                   >
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
@@ -116,7 +125,6 @@ export default function ClientLoginPage() {
               </p>
             </div>
 
-            {/* Demo credentials hint */}
             <div className="mt-6 p-4 rounded-lg bg-muted/50">
               <p className="text-xs text-muted-foreground text-center">
                 <strong>Demo:</strong> Use email <code className="bg-background px-1 rounded">john.doe@email.com</code>{" "}
