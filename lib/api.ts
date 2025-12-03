@@ -699,6 +699,18 @@ export async function getAvailableSlots(date: string): Promise<ApiResponse<strin
 
 export const getAvailableBookingSlots = getAvailableSlots
 
+export async function getWeeklyAvailability(): Promise<ApiResponse<AvailabilitySchedule[]>> {
+  await delay(400)
+  // Return availability for the next 4 weeks
+  const today = new Date()
+  const fourWeeksLater = new Date(today.getTime() + 28 * 24 * 60 * 60 * 1000)
+  const startDate = today.toISOString().split("T")[0]
+  const endDate = fourWeeksLater.toISOString().split("T")[0]
+
+  const availability = mockAvailability.filter((a) => a.date >= startDate && a.date <= endDate)
+  return { success: true, data: availability }
+}
+
 // ==========================================
 // ACCESS CODE APIs
 // ==========================================
@@ -943,4 +955,61 @@ export async function createActivityLog(data: {
     createdAt: new Date().toISOString(),
   }
   return { success: true, data: log }
+}
+
+// ==========================================
+// SETTINGS APIs
+// ==========================================
+
+export async function changePassword(
+  userId: string,
+  currentPassword: string,
+  newPassword: string,
+): Promise<ApiResponse<null>> {
+  await delay(500)
+  // Mock validation - in real app, verify current password
+  if (currentPassword === "password123") {
+    return { success: true, message: "Password changed successfully!" }
+  }
+  return { success: false, error: "Current password is incorrect" }
+}
+
+export async function getNotificationPreferences(userId: string): Promise<
+  ApiResponse<{
+    emailNotifications: boolean
+    smsNotifications: boolean
+    applicationUpdates: boolean
+    documentReminders: boolean
+    appointmentReminders: boolean
+    marketingEmails: boolean
+  }>
+> {
+  await delay(300)
+  // Return default preferences
+  return {
+    success: true,
+    data: {
+      emailNotifications: true,
+      smsNotifications: false,
+      applicationUpdates: true,
+      documentReminders: true,
+      appointmentReminders: true,
+      marketingEmails: false,
+    },
+  }
+}
+
+export async function updateNotificationPreferences(
+  userId: string,
+  preferences: Partial<{
+    emailNotifications: boolean
+    smsNotifications: boolean
+    applicationUpdates: boolean
+    documentReminders: boolean
+    appointmentReminders: boolean
+    marketingEmails: boolean
+  }>,
+): Promise<ApiResponse<null>> {
+  await delay(400)
+  return { success: true, message: "Notification preferences updated!" }
 }
