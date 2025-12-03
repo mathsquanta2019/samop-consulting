@@ -864,6 +864,7 @@ export async function createApplicationForm(
     workExperience: data.workExperience || [],
     testScores: data.testScores || [],
     preferredCountries: data.preferredCountries || [],
+    intakePreference: data.intakePreference || "",
     requiredDocuments: data.requiredDocuments || [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),

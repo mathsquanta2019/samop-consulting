@@ -10,8 +10,17 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Separator } from "@/components/ui/separator"
-import { Bell, Lock, Shield, CheckCircle } from "lucide-react"
+import { BellIcon, LockIcon, ShieldIcon, CheckCircleIcon } from "@/components/icons"
 import { changePassword, getNotificationPreferences, updateNotificationPreferences } from "@/lib/api"
+
+interface NotificationPreferences {
+  emailNotifications: boolean
+  smsNotifications: boolean
+  applicationUpdates: boolean
+  documentReminders: boolean
+  appointmentReminders: boolean
+  marketingEmails: boolean
+}
 
 export default function SettingsPage() {
   const { profile } = useClient()
@@ -25,12 +34,13 @@ export default function SettingsPage() {
   const [passwordSuccess, setPasswordSuccess] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const [notifications, setNotifications] = useState({
-    email: true,
-    sms: true,
-    statusUpdates: true,
-    appointments: true,
-    marketing: false,
+  const [notifications, setNotifications] = useState<NotificationPreferences>({
+    emailNotifications: true,
+    smsNotifications: false,
+    applicationUpdates: true,
+    documentReminders: true,
+    appointmentReminders: true,
+    marketingEmails: false,
   })
   const [notifSuccess, setNotifSuccess] = useState(false)
 
@@ -76,7 +86,7 @@ export default function SettingsPage() {
     setIsSubmitting(false)
   }
 
-  const handleNotificationChange = async (key: keyof typeof notifications, value: boolean) => {
+  const handleNotificationChange = async (key: keyof NotificationPreferences, value: boolean) => {
     const updated = { ...notifications, [key]: value }
     setNotifications(updated)
 
@@ -101,7 +111,7 @@ export default function SettingsPage() {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Bell className="h-5 w-5 text-primary" />
+              <BellIcon className="h-5 w-5 text-primary" />
             </div>
             <div>
               <CardTitle className="text-card-foreground">Notifications</CardTitle>
@@ -110,7 +120,7 @@ export default function SettingsPage() {
           </div>
           {notifSuccess && (
             <div className="flex items-center gap-2 text-green-600 text-sm">
-              <CheckCircle className="h-4 w-4" />
+              <CheckCircleIcon className="h-4 w-4" />
               Preferences saved
             </div>
           )}
@@ -122,8 +132,8 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Receive updates via email</p>
             </div>
             <Switch
-              checked={notifications.email}
-              onCheckedChange={(checked) => handleNotificationChange("email", checked)}
+              checked={notifications.emailNotifications}
+              onCheckedChange={(checked) => handleNotificationChange("emailNotifications", checked)}
             />
           </div>
           <Separator />
@@ -133,8 +143,8 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Receive updates via text message</p>
             </div>
             <Switch
-              checked={notifications.sms}
-              onCheckedChange={(checked) => handleNotificationChange("sms", checked)}
+              checked={notifications.smsNotifications}
+              onCheckedChange={(checked) => handleNotificationChange("smsNotifications", checked)}
             />
           </div>
           <Separator />
@@ -144,8 +154,19 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Get notified when your application status changes</p>
             </div>
             <Switch
-              checked={notifications.statusUpdates}
-              onCheckedChange={(checked) => handleNotificationChange("statusUpdates", checked)}
+              checked={notifications.applicationUpdates}
+              onCheckedChange={(checked) => handleNotificationChange("applicationUpdates", checked)}
+            />
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="font-medium text-card-foreground">Document Reminders</p>
+              <p className="text-sm text-muted-foreground">Get reminded about pending document uploads</p>
+            </div>
+            <Switch
+              checked={notifications.documentReminders}
+              onCheckedChange={(checked) => handleNotificationChange("documentReminders", checked)}
             />
           </div>
           <Separator />
@@ -155,8 +176,8 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Get reminded about upcoming appointments</p>
             </div>
             <Switch
-              checked={notifications.appointments}
-              onCheckedChange={(checked) => handleNotificationChange("appointments", checked)}
+              checked={notifications.appointmentReminders}
+              onCheckedChange={(checked) => handleNotificationChange("appointmentReminders", checked)}
             />
           </div>
           <Separator />
@@ -166,8 +187,8 @@ export default function SettingsPage() {
               <p className="text-sm text-muted-foreground">Receive news about our services and promotions</p>
             </div>
             <Switch
-              checked={notifications.marketing}
-              onCheckedChange={(checked) => handleNotificationChange("marketing", checked)}
+              checked={notifications.marketingEmails}
+              onCheckedChange={(checked) => handleNotificationChange("marketingEmails", checked)}
             />
           </div>
         </CardContent>
@@ -178,7 +199,7 @@ export default function SettingsPage() {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Lock className="h-5 w-5 text-primary" />
+              <LockIcon className="h-5 w-5 text-primary" />
             </div>
             <div>
               <CardTitle className="text-card-foreground">Password & Security</CardTitle>
@@ -190,7 +211,7 @@ export default function SettingsPage() {
           {passwordSuccess ? (
             <div className="text-center py-8">
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
-                <CheckCircle className="h-8 w-8 text-green-600" />
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
               </div>
               <h3 className="text-lg font-semibold text-card-foreground">Password Changed!</h3>
               <p className="text-muted-foreground">Your password has been updated successfully.</p>
@@ -258,7 +279,7 @@ export default function SettingsPage() {
         <CardHeader>
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <Shield className="h-5 w-5 text-primary" />
+              <ShieldIcon className="h-5 w-5 text-primary" />
             </div>
             <div>
               <CardTitle className="text-card-foreground">Privacy & Data</CardTitle>
