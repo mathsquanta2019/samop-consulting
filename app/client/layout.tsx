@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState, createContext, useContext, useCallback } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -55,10 +55,9 @@ const navItems = [
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const router = useRouter()
   const [profile, setProfile] = useState<ClientProfile | null>(null)
   const [user, setUser] = useState<UserType | null>(null)
-  const [authState, setAuthState] = useState<"loading" | "authenticated" | "unauthenticated">("loading")
+  const [isLoading, setIsLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/client/login"
@@ -82,54 +81,51 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   useEffect(() => {
     // Skip auth check for login page
     if (isLoginPage) {
-      setAuthState("unauthenticated")
+      setIsLoading(false)
       return
     }
 
-    // Check localStorage synchronously after mount
-    const token = localStorage.getItem("samop_token")
-    const userStr = localStorage.getItem("samop_user")
+    // Check auth
+    const checkAuth = async () => {
+      const token = localStorage.getItem("samop_token")
+      const userStr = localStorage.getItem("samop_user")
 
-    if (!token || !userStr) {
-      setAuthState("unauthenticated")
-      router.replace("/client/login")
-      return
-    }
-
-    try {
-      const userData = JSON.parse(userStr) as UserType
-
-      if (userData.role !== "client") {
-        localStorage.removeItem("samop_token")
-        localStorage.removeItem("samop_user")
-        setAuthState("unauthenticated")
-        router.replace("/client/login")
+      if (!token || !userStr) {
+        window.location.href = "/client/login"
         return
       }
 
-      // Set user and mark as authenticated
-      setUser(userData)
-      setAuthState("authenticated")
+      try {
+        const userData = JSON.parse(userStr) as UserType
 
-      // Load profile in background
-      getClientProfile(userData.id).then((result) => {
+        if (userData.role !== "client") {
+          localStorage.removeItem("samop_token")
+          localStorage.removeItem("samop_user")
+          window.location.href = "/client/login"
+          return
+        }
+
+        // Set user immediately
+        setUser(userData)
+        setIsLoading(false)
+
+        // Load profile in background
+        const result = await getClientProfile(userData.id)
         if (result.success && result.data) {
           setProfile(result.data)
         }
-      })
-    } catch (e) {
-      setAuthState("unauthenticated")
-      router.replace("/client/login")
+      } catch (e) {
+        window.location.href = "/client/login"
+      }
     }
-  }, [isLoginPage, router])
+
+    checkAuth()
+  }, [isLoginPage])
 
   const handleLogout = () => {
     localStorage.removeItem("samop_token")
     localStorage.removeItem("samop_user")
-    setUser(null)
-    setProfile(null)
-    setAuthState("unauthenticated")
-    router.replace("/client/login")
+    window.location.href = "/client/login"
   }
 
   // Login page - render children directly without layout
@@ -138,7 +134,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }
 
   // Loading state
-  if (authState === "loading") {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -149,13 +145,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     )
   }
 
-  // Unauthenticated - show redirecting message
-  if (authState === "unauthenticated" || !user) {
+  // No user after loading - redirect is happening
+  if (!user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
-          <p className="mt-4 text-muted-foreground">Redirecting to login...</p>
+          <p className="mt-4 text-muted-foreground">Redirecting...</p>
         </div>
       </div>
     )
@@ -165,7 +161,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const displayName = user.firstName
 
   return (
-    <ClientContext.Provider value={{ profile, user, isLoading: authState === "loading", refreshProfile }}>
+    <ClientContext.Provider value={{ profile, user, isLoading, refreshProfile }}>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="sticky top-0 z-50 border-b border-border bg-card">

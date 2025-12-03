@@ -8,17 +8,19 @@ import type { ClientProfile } from "@/lib/types"
 
 export default function ClientDashboardPage() {
   const { user, profile: contextProfile } = useClient()
-  const [profile, setProfile] = useState<ClientProfile | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [profile, setProfile] = useState<ClientProfile | null>(contextProfile)
+  const [isLoading, setIsLoading] = useState(!contextProfile)
 
   useEffect(() => {
+    // If we already have the profile from context, use it
     if (contextProfile) {
       setProfile(contextProfile)
       setIsLoading(false)
       return
     }
 
-    if (user) {
+    // If we have a user but no profile, fetch it
+    if (user && !profile) {
       getClientProfile(user.id).then((result) => {
         if (result.success && result.data) {
           setProfile(result.data)
@@ -26,18 +28,15 @@ export default function ClientDashboardPage() {
         setIsLoading(false)
       })
     }
-  }, [user, contextProfile])
+  }, [user, contextProfile, profile])
 
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
-          <p className="mt-4 text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    )
-  }
+  // Update profile when context changes
+  useEffect(() => {
+    if (contextProfile) {
+      setProfile(contextProfile)
+      setIsLoading(false)
+    }
+  }, [contextProfile])
 
   if (isLoading) {
     return (

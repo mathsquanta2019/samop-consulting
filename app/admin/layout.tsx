@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState, createContext, useContext } from "react"
-import { usePathname, useRouter } from "next/navigation"
+import { usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -53,60 +53,58 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const router = useRouter()
   const [admin, setAdmin] = useState<User | null>(null)
-  const [authState, setAuthState] = useState<"loading" | "authenticated" | "unauthenticated">("loading")
+  const [isLoading, setIsLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/admin/login"
 
   useEffect(() => {
     if (isLoginPage) {
-      setAuthState("unauthenticated")
+      setIsLoading(false)
       return
     }
 
-    const token = localStorage.getItem("samop_admin_token")
-    const userStr = localStorage.getItem("samop_admin_user")
+    const checkAuth = () => {
+      const token = localStorage.getItem("samop_admin_token")
+      const userStr = localStorage.getItem("samop_admin_user")
 
-    if (!token || !userStr) {
-      setAuthState("unauthenticated")
-      router.replace("/admin/login")
-      return
-    }
-
-    try {
-      const user = JSON.parse(userStr) as User
-
-      if (user.role !== "admin") {
-        localStorage.removeItem("samop_admin_token")
-        localStorage.removeItem("samop_admin_user")
-        setAuthState("unauthenticated")
-        router.replace("/admin/login")
+      if (!token || !userStr) {
+        window.location.href = "/admin/login"
         return
       }
 
-      setAdmin(user)
-      setAuthState("authenticated")
-    } catch (e) {
-      setAuthState("unauthenticated")
-      router.replace("/admin/login")
+      try {
+        const user = JSON.parse(userStr) as User
+
+        if (user.role !== "admin") {
+          localStorage.removeItem("samop_admin_token")
+          localStorage.removeItem("samop_admin_user")
+          window.location.href = "/admin/login"
+          return
+        }
+
+        setAdmin(user)
+        setIsLoading(false)
+      } catch (e) {
+        window.location.href = "/admin/login"
+      }
     }
-  }, [isLoginPage, router])
+
+    checkAuth()
+  }, [isLoginPage])
 
   const handleLogout = () => {
     localStorage.removeItem("samop_admin_token")
     localStorage.removeItem("samop_admin_user")
-    setAdmin(null)
-    setAuthState("unauthenticated")
-    router.replace("/admin/login")
+    window.location.href = "/admin/login"
   }
 
   if (isLoginPage) {
     return <>{children}</>
   }
 
-  if (authState === "loading") {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -117,12 +115,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
-  if (authState === "unauthenticated" || !admin) {
+  if (!admin) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
-          <p className="mt-4 text-muted-foreground">Redirecting to login...</p>
+          <p className="mt-4 text-muted-foreground">Redirecting...</p>
         </div>
       </div>
     )
@@ -131,7 +129,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const initials = `${admin.firstName[0]}${admin.lastName[0]}`.toUpperCase()
 
   return (
-    <AdminContext.Provider value={{ admin, isLoading: authState === "loading" }}>
+    <AdminContext.Provider value={{ admin, isLoading }}>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="sticky top-0 z-50 border-b border-border bg-card">
