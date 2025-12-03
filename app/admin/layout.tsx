@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState, createContext, useContext } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -53,62 +53,59 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
+  const router = useRouter()
   const [admin, setAdmin] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
 
   const isLoginPage = pathname === "/admin/login"
 
   useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  useEffect(() => {
-    if (!mounted) return
-
     if (isLoginPage) {
       setIsLoading(false)
       return
     }
 
-    const token = localStorage.getItem("samop_admin_token")
-    const userStr = localStorage.getItem("samop_admin_user")
+    const checkAuth = () => {
+      console.log("[v0] Admin: Checking auth...")
+      const token = localStorage.getItem("samop_admin_token")
+      const userStr = localStorage.getItem("samop_admin_user")
 
-    if (!token || !userStr) {
-      window.location.href = "/admin/login"
-      return
-    }
+      console.log("[v0] Admin Token:", token ? "exists" : "missing")
+      console.log("[v0] Admin UserStr:", userStr ? "exists" : "missing")
 
-    try {
-      const user = JSON.parse(userStr) as User
-      if (user.role !== "admin") {
-        window.location.href = "/admin/login"
+      if (!token || !userStr) {
+        console.log("[v0] Admin: No auth, redirecting to login")
+        router.push("/admin/login")
         return
       }
 
-      setAdmin(user)
-      setIsLoading(false)
-    } catch {
-      window.location.href = "/admin/login"
+      try {
+        const user = JSON.parse(userStr) as User
+        console.log("[v0] Admin user data:", user)
+
+        if (user.role !== "admin") {
+          console.log("[v0] Admin: Not an admin, redirecting")
+          router.push("/admin/login")
+          return
+        }
+
+        setAdmin(user)
+        setIsLoading(false)
+        console.log("[v0] Admin: Auth success, loading set to false")
+      } catch (e) {
+        console.log("[v0] Admin: Error parsing user:", e)
+        router.push("/admin/login")
+      }
     }
-  }, [mounted, isLoginPage])
+
+    checkAuth()
+  }, [isLoginPage, router])
 
   const handleLogout = () => {
     localStorage.removeItem("samop_admin_token")
     localStorage.removeItem("samop_admin_user")
-    window.location.href = "/admin/login"
-  }
-
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
-          <p className="mt-4 text-muted-foreground">Loading...</p>
-        </div>
-      </div>
-    )
+    router.push("/admin/login")
   }
 
   if (isLoginPage) {
@@ -131,7 +128,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
-          <p className="mt-4 text-muted-foreground">Redirecting...</p>
+          <p className="mt-4 text-muted-foreground">Redirecting to login...</p>
         </div>
       </div>
     )

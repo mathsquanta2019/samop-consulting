@@ -12,15 +12,20 @@ export default function AdminDashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    console.log("[v0] Admin Dashboard: admin=", admin)
+
     const fetchStats = async () => {
+      console.log("[v0] Admin Dashboard: Fetching stats...")
       const result = await getDashboardStats()
+      console.log("[v0] Admin Dashboard: Stats result:", result)
       if (result.success && result.data) {
         setStats(result.data)
       }
       setIsLoading(false)
     }
+
     fetchStats()
-  }, [])
+  }, [admin])
 
   if (isLoading) {
     return (
