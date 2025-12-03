@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -31,9 +32,10 @@ import {
   UserIcon,
   MailIcon,
   CalendarIcon,
+  SendIcon,
 } from "@/components/icons"
-import type { Application, ApplicationStatus } from "@/lib/types"
-import { updateApplicationStatus } from "@/lib/api"
+import type { Application, ApplicationStatus, AppointmentType } from "@/lib/types"
+import { updateApplicationStatus, sendEmailToClient, adminCreateAppointment, getAvailableSlots } from "@/lib/api"
 
 interface ApplicationsManagerProps {
   applications: Application[]
@@ -58,6 +60,20 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
   const [isSuccess, setIsSuccess] = useState(false)
   const [activeTab, setActiveTab] = useState("all")
 
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
+  const [emailSubject, setEmailSubject] = useState("")
+  const [emailBody, setEmailBody] = useState("")
+  const [emailApp, setEmailApp] = useState<Application | null>(null)
+
+  const [meetingDialogOpen, setMeetingDialogOpen] = useState(false)
+  const [meetingApp, setMeetingApp] = useState<Application | null>(null)
+  const [meetingDate, setMeetingDate] = useState("")
+  const [meetingTime, setMeetingTime] = useState("")
+  const [meetingType, setMeetingType] = useState<AppointmentType>("consultation")
+  const [meetingDuration, setMeetingDuration] = useState("60")
+  const [meetingNotes, setMeetingNotes] = useState("")
+  const [availableSlots, setAvailableSlots] = useState<string[]>([])
+
   const handleUpdateStatus = async () => {
     if (!selectedApp || !newStatus) return
 
@@ -76,11 +92,66 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
     setIsSubmitting(false)
   }
 
+  const handleSendEmail = async () => {
+    if (!emailApp || !emailSubject || !emailBody) return
+
+    setIsSubmitting(true)
+    const result = await sendEmailToClient({
+      clientId: emailApp.clientId,
+      subject: emailSubject,
+      body: emailBody,
+      applicationId: emailApp.id,
+    })
+
+    if (result.success) {
+      setEmailDialogOpen(false)
+      setEmailSubject("")
+      setEmailBody("")
+      setEmailApp(null)
+    }
+    setIsSubmitting(false)
+  }
+
+  const handleDateChange = async (date: string) => {
+    setMeetingDate(date)
+    if (date) {
+      const result = await getAvailableSlots(date)
+      if (result.success && result.data) {
+        setAvailableSlots(result.data.map((slot) => slot.time))
+      }
+    }
+  }
+
+  const handleScheduleMeeting = async () => {
+    if (!meetingApp || !meetingDate || !meetingTime) return
+
+    setIsSubmitting(true)
+    const result = await adminCreateAppointment({
+      clientId: meetingApp.clientId,
+      clientName: `Client ${meetingApp.clientId.slice(-6)}`,
+      clientEmail: "",
+      clientPhone: "",
+      type: meetingType,
+      date: meetingDate,
+      time: meetingTime,
+      duration: Number.parseInt(meetingDuration),
+      notes: meetingNotes,
+    })
+
+    if (result.success) {
+      setMeetingDialogOpen(false)
+      setMeetingApp(null)
+      setMeetingDate("")
+      setMeetingTime("")
+      setMeetingNotes("")
+    }
+    setIsSubmitting(false)
+  }
+
   const getStatusColor = (status: ApplicationStatus) => {
     return statusOptions.find((s) => s.value === status)?.color || "bg-gray-100 text-gray-700"
   }
 
-  // Filter applications based on tab
   const filterApplicationsByTab = (apps: Application[], tab: string) => {
     switch (tab) {
       case "pending":
@@ -94,7 +165,6 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
     }
   }
 
-  // Calculate stats
   const stats = {
     total: applications.length,
     pending: applications.filter((a) => a.status === "pending" || a.status === "documents_required").length,
@@ -211,11 +281,22 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
               <EditIcon className="mr-2 h-4 w-4" />
               Update Status
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                setEmailApp(row.original)
+                setEmailSubject(`Update on your ${row.original.serviceType} application`)
+                setEmailDialogOpen(true)
+              }}
+            >
               <MailIcon className="mr-2 h-4 w-4" />
               Email Client
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => {
+                setMeetingApp(row.original)
+                setMeetingDialogOpen(true)
+              }}
+            >
               <CalendarIcon className="mr-2 h-4 w-4" />
               Schedule Meeting
             </DropdownMenuItem>
@@ -412,6 +493,146 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+        <DialogContent className="bg-card max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-card-foreground">Email Client</DialogTitle>
+            <DialogDescription>Send an email regarding their application</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Input
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                placeholder="Email subject"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Message</Label>
+              <Textarea
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+                placeholder="Write your message to the client..."
+                rows={6}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setEmailDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleSendEmail}
+                className="flex-1 bg-primary text-primary-foreground"
+                disabled={!emailSubject || !emailBody || isSubmitting}
+              >
+                <SendIcon className="mr-2 h-4 w-4" />
+                {isSubmitting ? "Sending..." : "Send Email"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={meetingDialogOpen} onOpenChange={setMeetingDialogOpen}>
+        <DialogContent className="bg-card max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="text-card-foreground">Schedule Meeting</DialogTitle>
+            <DialogDescription>Schedule a meeting with the client</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Meeting Type</Label>
+                <Select value={meetingType} onValueChange={(v) => setMeetingType(v as AppointmentType)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="consultation">Consultation</SelectItem>
+                    <SelectItem value="document_review">Document Review</SelectItem>
+                    <SelectItem value="interview_prep">Interview Prep</SelectItem>
+                    <SelectItem value="visa_guidance">Visa Guidance</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Duration</Label>
+                <Select value={meetingDuration} onValueChange={setMeetingDuration}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="30">30 minutes</SelectItem>
+                    <SelectItem value="60">60 minutes</SelectItem>
+                    <SelectItem value="90">90 minutes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Date</Label>
+                <Input
+                  type="date"
+                  value={meetingDate}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                  min={new Date().toISOString().split("T")[0]}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Time</Label>
+                <Select value={meetingTime} onValueChange={setMeetingTime} disabled={!meetingDate}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSlots.length > 0 ? (
+                      availableSlots.map((slot) => (
+                        <SelectItem key={slot} value={slot}>
+                          {slot}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <>
+                        <SelectItem value="09:00">09:00 AM</SelectItem>
+                        <SelectItem value="10:00">10:00 AM</SelectItem>
+                        <SelectItem value="11:00">11:00 AM</SelectItem>
+                        <SelectItem value="14:00">02:00 PM</SelectItem>
+                        <SelectItem value="15:00">03:00 PM</SelectItem>
+                        <SelectItem value="16:00">04:00 PM</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={meetingNotes}
+                onChange={(e) => setMeetingNotes(e.target.value)}
+                placeholder="Add meeting notes or agenda..."
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setMeetingDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleScheduleMeeting}
+                className="flex-1 bg-primary text-primary-foreground"
+                disabled={!meetingDate || !meetingTime || isSubmitting}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {isSubmitting ? "Scheduling..." : "Schedule Meeting"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

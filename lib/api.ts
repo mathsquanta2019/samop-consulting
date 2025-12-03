@@ -391,6 +391,39 @@ export async function reviewDocument(
   return { success: true, data: updated, message: "Document reviewed successfully!" }
 }
 
+export async function sendEmailToClient(data: {
+  clientId: string
+  subject: string
+  body: string
+  applicationId?: string
+}): Promise<ApiResponse<{ messageId: string }>> {
+  await delay(500)
+  // In production, this would integrate with an email service like SendGrid, Mailgun, etc.
+  return {
+    success: true,
+    data: { messageId: "msg_" + Date.now() },
+    message: "Email sent successfully!",
+  }
+}
+
+export async function viewDocument(documentId: string): Promise<ApiResponse<Document>> {
+  await delay(300)
+  const document = mockDocuments.find((doc) => doc.id === documentId)
+  if (document) {
+    return { success: true, data: document }
+  }
+  return { success: false, error: "Document not found" }
+}
+
+export async function downloadDocument(documentId: string): Promise<ApiResponse<{ downloadUrl: string }>> {
+  await delay(300)
+  const document = mockDocuments.find((doc) => doc.id === documentId)
+  if (document) {
+    return { success: true, data: { downloadUrl: document.url }, message: "Download ready" }
+  }
+  return { success: false, error: "Document not found" }
+}
+
 // ==========================================
 // APPOINTMENT APIs
 // ==========================================
@@ -482,10 +515,7 @@ export async function updateAppointment(id: string, data: Partial<Appointment>):
   return { success: false, error: "Appointment not found" }
 }
 
-export async function updateAppointmentStatus(
-  id: string,
-  status: Appointment["status"],
-): Promise<ApiResponse<Appointment>> {
+export async function updateAppointmentStatus(id: string, status: string): Promise<ApiResponse<Appointment>> {
   await delay(400)
   const appointment = mockAppointments.find((apt) => apt.id === id)
   if (appointment) {
@@ -524,6 +554,70 @@ export async function adminCreateAppointment(data: {
     createdAt: new Date().toISOString(),
   }
   return { success: true, data: newApt, message: "Appointment scheduled for client!" }
+}
+
+export async function proposeNewAppointmentTime(
+  appointmentId: string,
+  newDate: string,
+  newTime: string,
+  reason?: string,
+): Promise<ApiResponse<Appointment>> {
+  await delay(500)
+  const appointment = mockAppointments.find((apt) => apt.id === appointmentId)
+  if (appointment) {
+    const updated = { ...appointment, date: newDate, time: newTime, status: "rescheduled" }
+    // In production, this would send a notification to the client
+    return { success: true, data: updated, message: "New time proposed! Client will be notified." }
+  }
+  return { success: false, error: "Appointment not found" }
+}
+
+export async function cancelAppointment(
+  appointmentId: string,
+  reason?: string,
+  cancelledBy: "client" | "admin" = "admin",
+): Promise<ApiResponse<{ refundAmount: number; refundPercentage: number }>> {
+  await delay(500)
+  const appointment = mockAppointments.find((apt) => apt.id === appointmentId)
+  if (!appointment) {
+    return { success: false, error: "Appointment not found" }
+  }
+
+  // Calculate refund based on cancellation timing (for client cancellations)
+  const appointmentDateTime = new Date(`${appointment.date}T${appointment.time}`)
+  const now = new Date()
+  const hoursUntilAppointment = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
+
+  let refundPercentage = 0
+  let refundMessage = ""
+
+  if (cancelledBy === "admin") {
+    // Admin cancellations always get full refund
+    refundPercentage = 100
+    refundMessage = "Full refund will be processed."
+  } else {
+    // Client cancellation refund policy
+    if (hoursUntilAppointment > 48) {
+      refundPercentage = 100
+      refundMessage = "Full refund - Cancelled more than 48 hours in advance."
+    } else if (hoursUntilAppointment > 24) {
+      refundPercentage = 50
+      refundMessage = "50% refund - Cancelled between 24-48 hours in advance."
+    } else {
+      refundPercentage = 0
+      refundMessage = "No refund - Cancelled less than 24 hours before appointment."
+    }
+  }
+
+  // Assuming a base appointment fee of $100
+  const appointmentFee = 100
+  const refundAmount = (appointmentFee * refundPercentage) / 100
+
+  return {
+    success: true,
+    data: { refundAmount, refundPercentage },
+    message: refundMessage,
+  }
 }
 
 // ==========================================
@@ -895,7 +989,7 @@ export async function submitApplicationForm(id: string): Promise<ApiResponse<App
       submittedAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
-    return { success: true, data: updated, message: "Application submitted successfully!" }
+    return { success: true, data: updated as ApplicationFormData, message: "Application submitted successfully!" }
   }
   return { success: false, error: "Application form not found" }
 }

@@ -25,12 +25,11 @@ import {
   ClockIcon,
   AlertCircleIcon,
   DownloadIcon,
-  TrashIcon,
   MessageSquareIcon,
   EyeIcon,
 } from "@/components/icons"
-import type { ClientProfile, DocumentType, DocumentStatus, DocumentUploadQueue } from "@/lib/types"
-import { uploadDocument, getDocumentQueue, deleteDocument } from "@/lib/api"
+import type { ClientProfile, DocumentType, DocumentStatus, DocumentUploadQueue, Document } from "@/lib/types"
+import { uploadDocument, getDocumentQueue, downloadDocument, viewDocument } from "@/lib/api"
 
 interface DocumentsManagerProps {
   profile: ClientProfile
@@ -76,6 +75,8 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
   const [selectedApp, setSelectedApp] = useState<string>("")
   const [uploadQueue, setUploadQueue] = useState<DocumentUploadQueue[]>([])
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [viewingDoc, setViewingDoc] = useState<Document | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -101,7 +102,6 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
     setIsUploading(true)
     setUploadProgress(0)
 
-    // Simulate upload progress
     const progressInterval = setInterval(() => {
       setUploadProgress((prev) => {
         if (prev >= 90) {
@@ -133,12 +133,22 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
     }, 500)
   }
 
-  const handleDelete = async (docId: string) => {
-    await deleteDocument(docId)
-    // Refresh would happen here
+  const handleView = async (doc: Document) => {
+    const result = await viewDocument(doc.id)
+    if (result.success && result.data) {
+      setViewingDoc(result.data)
+      setViewDialogOpen(true)
+    }
   }
 
-  // Group documents by status for better organization
+  const handleDownload = async (doc: Document) => {
+    const result = await downloadDocument(doc.id)
+    if (result.success && result.data) {
+      // In production, this would trigger a file download
+      window.open(result.data.downloadUrl, "_blank")
+    }
+  }
+
   const documentsByStatus = {
     requires_update: profile.documents.filter((d) => d.status === "requires_update"),
     pending: profile.documents.filter((d) => d.status === "pending"),
@@ -248,7 +258,7 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
         </Dialog>
       </div>
 
-      {/* Upload Queue - Shows documents being processed */}
+      {/* Upload Queue */}
       {uploadQueue.length > 0 && (
         <Card className="bg-card border-blue-200">
           <CardHeader className="pb-3">
@@ -301,7 +311,7 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
         })}
       </div>
 
-      {/* Documents Requiring Action - Shown First */}
+      {/* Documents Requiring Action */}
       {documentsByStatus.requires_update.length > 0 && (
         <Card className="bg-card border-orange-200">
           <CardHeader>
@@ -332,17 +342,6 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
                               <div>
                                 <p className="text-xs font-medium text-orange-700">Admin Feedback:</p>
                                 <p className="text-sm text-orange-800">{doc.feedback}</p>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                        {doc.adminNotes && (
-                          <div className="mt-2 p-3 rounded-lg bg-white border border-orange-200">
-                            <div className="flex items-start gap-2">
-                              <MessageSquareIcon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                              <div>
-                                <p className="text-xs font-medium text-muted-foreground">Additional Notes:</p>
-                                <p className="text-sm">{doc.adminNotes}</p>
                               </div>
                             </div>
                           </div>
@@ -415,20 +414,11 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
                           {config.label}
                         </Badge>
                         <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" title="View">
+                          <Button variant="ghost" size="icon" title="View" onClick={() => handleView(doc)}>
                             <EyeIcon className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" title="Download">
+                          <Button variant="ghost" size="icon" title="Download" onClick={() => handleDownload(doc)}>
                             <DownloadIcon className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="text-red-500 hover:text-red-600"
-                            title="Delete"
-                            onClick={() => handleDelete(doc.id)}
-                          >
-                            <TrashIcon className="h-4 w-4" />
                           </Button>
                         </div>
                       </div>
@@ -439,6 +429,62 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="bg-card max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-card-foreground">Document Details</DialogTitle>
+          </DialogHeader>
+          {viewingDoc && (
+            <div className="space-y-4 py-4">
+              <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
+                <FileTextIcon className="h-16 w-16 text-muted-foreground" />
+                <p className="text-muted-foreground ml-4">Document Preview</p>
+              </div>
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label className="text-muted-foreground">File Name</Label>
+                  <p className="font-medium">{viewingDoc.name}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Type</Label>
+                  <p className="capitalize">{viewingDoc.type.replace(/_/g, " ")}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Upload Date</Label>
+                  <p>{new Date(viewingDoc.uploadedAt).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <Badge
+                    className={statusConfig[viewingDoc.status].bgColor + " " + statusConfig[viewingDoc.status].color}
+                  >
+                    {statusConfig[viewingDoc.status].label}
+                  </Badge>
+                </div>
+              </div>
+              {viewingDoc.feedback && (
+                <div>
+                  <Label className="text-muted-foreground">Admin Feedback</Label>
+                  <p className="p-3 bg-muted rounded-lg mt-1">{viewingDoc.feedback}</p>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setViewDialogOpen(false)}>
+                  Close
+                </Button>
+                <Button
+                  className="flex-1 bg-primary text-primary-foreground"
+                  onClick={() => handleDownload(viewingDoc)}
+                >
+                  <DownloadIcon className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

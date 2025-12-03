@@ -20,6 +20,7 @@ import {
   ChevronLeftIcon,
   SaveIcon,
   SendIcon,
+  AlertCircleIcon,
 } from "@/components/icons"
 import type {
   ApplicationFormData,
@@ -102,6 +103,8 @@ export default function ApplyPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
+  const [errors, setErrors] = useState<Record<string, string>>({})
+  const [showErrors, setShowErrors] = useState(false)
   const [formData, setFormData] = useState<Partial<ApplicationFormData>>({
     serviceType: "education",
     educationLevel: "masters",
@@ -132,6 +135,153 @@ export default function ApplyPage() {
     requiredDocuments: [],
   })
 
+  const validateStep1 = (): Record<string, string> => {
+    const stepErrors: Record<string, string> = {}
+    if (!formData.serviceType) {
+      stepErrors.serviceType = "Please select a service type"
+    }
+    if (formData.serviceType === "education" && !formData.educationLevel) {
+      stepErrors.educationLevel = "Please select an education level"
+    }
+    return stepErrors
+  }
+
+  const validateStep2 = (): Record<string, string> => {
+    const stepErrors: Record<string, string> = {}
+    const info = formData.personalInfo
+    if (!info?.firstName?.trim()) stepErrors.firstName = "First name is required"
+    if (!info?.lastName?.trim()) stepErrors.lastName = "Last name is required"
+    if (!info?.dateOfBirth) stepErrors.dateOfBirth = "Date of birth is required"
+    if (!info?.gender) stepErrors.gender = "Gender is required"
+    if (!info?.nationality?.trim()) stepErrors.nationality = "Nationality is required"
+    if (!info?.countryOfResidence?.trim()) stepErrors.countryOfResidence = "Country of residence is required"
+    if (!info?.address?.trim()) stepErrors.address = "Address is required"
+    if (!info?.city?.trim()) stepErrors.city = "City is required"
+    if (!info?.state?.trim()) stepErrors.state = "State/Province is required"
+    if (!info?.phone?.trim()) stepErrors.phone = "Phone number is required"
+    if (!info?.email?.trim()) {
+      stepErrors.email = "Email is required"
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(info.email)) {
+      stepErrors.email = "Please enter a valid email address"
+    }
+    if (!info?.maritalStatus) stepErrors.maritalStatus = "Marital status is required"
+    return stepErrors
+  }
+
+  const validateStep3 = (): Record<string, string> => {
+    const stepErrors: Record<string, string> = {}
+    if (!formData.educationHistory || formData.educationHistory.length === 0) {
+      stepErrors.educationHistory = "At least one education record is required"
+    } else {
+      formData.educationHistory.forEach((edu, index) => {
+        if (!edu.institution?.trim())
+          stepErrors[`edu_${index}_institution`] = `Education #${index + 1}: Institution is required`
+        if (!edu.country?.trim()) stepErrors[`edu_${index}_country`] = `Education #${index + 1}: Country is required`
+        if (!edu.fieldOfStudy?.trim())
+          stepErrors[`edu_${index}_fieldOfStudy`] = `Education #${index + 1}: Field of study is required`
+        if (!edu.startDate) stepErrors[`edu_${index}_startDate`] = `Education #${index + 1}: Start date is required`
+        if (!edu.endDate) stepErrors[`edu_${index}_endDate`] = `Education #${index + 1}: End date is required`
+      })
+    }
+    return stepErrors
+  }
+
+  const validateStep4 = (): Record<string, string> => {
+    const stepErrors: Record<string, string> = {}
+    // Work experience is optional for bachelors, but required fields if entries exist
+    if (formData.educationLevel !== "bachelors" && (!formData.workExperience || formData.workExperience.length === 0)) {
+      stepErrors.workExperience = "Work experience is required for Masters/PhD applications"
+    }
+    formData.workExperience?.forEach((work, index) => {
+      if (!work.companyName?.trim())
+        stepErrors[`work_${index}_company`] = `Experience #${index + 1}: Company name is required`
+      if (!work.position?.trim())
+        stepErrors[`work_${index}_position`] = `Experience #${index + 1}: Position is required`
+      if (!work.country?.trim()) stepErrors[`work_${index}_country`] = `Experience #${index + 1}: Country is required`
+      if (!work.startDate) stepErrors[`work_${index}_startDate`] = `Experience #${index + 1}: Start date is required`
+    })
+    return stepErrors
+  }
+
+  const validateStep5 = (): Record<string, string> => {
+    const stepErrors: Record<string, string> = {}
+    // Test scores are recommended but not strictly required
+    formData.testScores?.forEach((test, index) => {
+      if (!test.overallScore?.trim())
+        stepErrors[`test_${index}_score`] = `Test #${index + 1}: Overall score is required`
+      if (!test.datesTaken) stepErrors[`test_${index}_date`] = `Test #${index + 1}: Test date is required`
+    })
+    return stepErrors
+  }
+
+  const validateStep6 = (): Record<string, string> => {
+    const stepErrors: Record<string, string> = {}
+    if (!formData.preferredCountries || formData.preferredCountries.length === 0) {
+      stepErrors.preferredCountries = "Please select at least one preferred country"
+    }
+    if (!formData.intakePreference) {
+      stepErrors.intakePreference = "Please select a preferred intake"
+    }
+    return stepErrors
+  }
+
+  const validateStep7 = (): Record<string, string> => {
+    // Documents step - no strict validation, user can upload later
+    return {}
+  }
+
+  const validateStep8 = (): Record<string, string> => {
+    // Review step - validate all previous steps
+    return {
+      ...validateStep1(),
+      ...validateStep2(),
+      ...validateStep3(),
+      ...validateStep4(),
+      ...validateStep5(),
+      ...validateStep6(),
+    }
+  }
+
+  const validateCurrentStep = (): boolean => {
+    let stepErrors: Record<string, string> = {}
+    switch (currentStep) {
+      case 1:
+        stepErrors = validateStep1()
+        break
+      case 2:
+        stepErrors = validateStep2()
+        break
+      case 3:
+        stepErrors = validateStep3()
+        break
+      case 4:
+        stepErrors = validateStep4()
+        break
+      case 5:
+        stepErrors = validateStep5()
+        break
+      case 6:
+        stepErrors = validateStep6()
+        break
+      case 7:
+        stepErrors = validateStep7()
+        break
+      case 8:
+        stepErrors = validateStep8()
+        break
+    }
+    setErrors(stepErrors)
+    setShowErrors(true)
+    return Object.keys(stepErrors).length === 0
+  }
+
+  const handleNextStep = () => {
+    if (validateCurrentStep()) {
+      setShowErrors(false)
+      setCurrentStep((prev) => Math.min(steps.length, prev + 1))
+    }
+  }
+
   useEffect(() => {
     if (formId) {
       loadForm(formId)
@@ -139,7 +289,6 @@ export default function ApplyPage() {
   }, [formId])
 
   useEffect(() => {
-    // Update required documents based on education level
     if (formData.educationLevel && formData.serviceType === "education") {
       const requiredDocs = requiredDocumentsByLevel[formData.educationLevel] || []
       setFormData((prev) => ({
@@ -179,6 +328,13 @@ export default function ApplyPage() {
   }
 
   const handleSubmit = async () => {
+    const allErrors = validateStep8()
+    if (Object.keys(allErrors).length > 0) {
+      setErrors(allErrors)
+      setShowErrors(true)
+      return
+    }
+
     if (!formData.id) {
       await handleSave()
     }
@@ -186,7 +342,6 @@ export default function ApplyPage() {
       setIsLoading(true)
       await submitApplicationForm(formData.id)
       setIsLoading(false)
-      // Redirect to applications page
       window.location.href = "/client/applications"
     }
   }
@@ -268,12 +423,45 @@ export default function ApplyPage() {
     )
   }
 
+  const FieldError = ({ field }: { field: string }) => {
+    if (!showErrors || !errors[field]) return null
+    return (
+      <p className="text-sm text-red-500 mt-1 flex items-center gap-1">
+        <AlertCircleIcon className="h-3 w-3" />
+        {errors[field]}
+      </p>
+    )
+  }
+
+  const hasError = (field: string) => showErrors && errors[field]
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-foreground">New Application</h1>
         <p className="text-muted-foreground">Complete the form to start your application process.</p>
       </div>
+
+      {showErrors && Object.keys(errors).length > 0 && (
+        <Card className="bg-red-50 border-red-200">
+          <CardContent className="pt-6">
+            <div className="flex items-start gap-3">
+              <AlertCircleIcon className="h-5 w-5 text-red-600 mt-0.5" />
+              <div>
+                <p className="font-medium text-red-800">Please fix the following errors:</p>
+                <ul className="text-sm text-red-700 mt-2 space-y-1 list-disc list-inside">
+                  {Object.values(errors)
+                    .slice(0, 5)
+                    .map((error, i) => (
+                      <li key={i}>{error}</li>
+                    ))}
+                  {Object.keys(errors).length > 5 && <li>...and {Object.keys(errors).length - 5} more errors</li>}
+                </ul>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Progress Bar */}
       <Card className="bg-card">
@@ -291,14 +479,13 @@ export default function ApplyPage() {
             {steps.map((step) => (
               <div
                 key={step.id}
-                className={`flex flex-col items-center cursor-pointer ${
+                className={`flex flex-col items-center ${
                   step.id === currentStep
                     ? "text-primary"
                     : step.id < currentStep
                       ? "text-green-600"
                       : "text-muted-foreground"
                 }`}
-                onClick={() => setCurrentStep(step.id)}
               >
                 <div
                   className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium mb-1 ${
@@ -330,12 +517,14 @@ export default function ApplyPage() {
             <div className="space-y-6">
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Service Type</Label>
+                  <Label className="flex items-center gap-1">
+                    Service Type <span className="text-red-500">*</span>
+                  </Label>
                   <Select
                     value={formData.serviceType}
                     onValueChange={(v) => setFormData({ ...formData, serviceType: v as ServiceType })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={hasError("serviceType") ? "border-red-500" : ""}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -345,16 +534,19 @@ export default function ApplyPage() {
                       <SelectItem value="credential_evaluation">Credential Evaluation</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FieldError field="serviceType" />
                 </div>
 
                 {formData.serviceType === "education" && (
                   <div className="space-y-2">
-                    <Label>Education Level</Label>
+                    <Label className="flex items-center gap-1">
+                      Education Level <span className="text-red-500">*</span>
+                    </Label>
                     <Select
                       value={formData.educationLevel}
                       onValueChange={(v) => setFormData({ ...formData, educationLevel: v as EducationLevel })}
                     >
-                      <SelectTrigger>
+                      <SelectTrigger className={hasError("educationLevel") ? "border-red-500" : ""}>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -363,6 +555,7 @@ export default function ApplyPage() {
                         <SelectItem value="phd">PhD / Doctorate</SelectItem>
                       </SelectContent>
                     </Select>
+                    <FieldError field="educationLevel" />
                   </div>
                 )}
               </div>
@@ -388,17 +581,35 @@ export default function ApplyPage() {
                       <li>- Status tracking and updates</li>
                     </>
                   )}
+                  {formData.serviceType === "sevis" && (
+                    <>
+                      <li>- SEVIS I-901 fee payment assistance</li>
+                      <li>- DS-160 form guidance</li>
+                      <li>- Visa interview preparation</li>
+                      <li>- Document review</li>
+                    </>
+                  )}
+                  {formData.serviceType === "credential_evaluation" && (
+                    <>
+                      <li>- Credential evaluation for US universities</li>
+                      <li>- WES/ECE evaluation assistance</li>
+                      <li>- Document translation coordination</li>
+                      <li>- Transcript verification</li>
+                    </>
+                  )}
                 </ul>
               </div>
             </div>
           )}
 
-          {/* Step 2: Personal Information */}
+          {/* Step 2: Personal Information - with validation */}
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>First Name *</Label>
+                  <Label className="flex items-center gap-1">
+                    First Name <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     value={formData.personalInfo?.firstName || ""}
                     onChange={(e) =>
@@ -407,7 +618,9 @@ export default function ApplyPage() {
                         personalInfo: { ...formData.personalInfo!, firstName: e.target.value },
                       })
                     }
+                    className={hasError("firstName") ? "border-red-500" : ""}
                   />
+                  <FieldError field="firstName" />
                 </div>
                 <div className="space-y-2">
                   <Label>Middle Name</Label>
@@ -422,7 +635,9 @@ export default function ApplyPage() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Last Name *</Label>
+                  <Label className="flex items-center gap-1">
+                    Last Name <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     value={formData.personalInfo?.lastName || ""}
                     onChange={(e) =>
@@ -431,13 +646,17 @@ export default function ApplyPage() {
                         personalInfo: { ...formData.personalInfo!, lastName: e.target.value },
                       })
                     }
+                    className={hasError("lastName") ? "border-red-500" : ""}
                   />
+                  <FieldError field="lastName" />
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>Date of Birth *</Label>
+                  <Label className="flex items-center gap-1">
+                    Date of Birth <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     type="date"
                     value={formData.personalInfo?.dateOfBirth || ""}
@@ -447,10 +666,14 @@ export default function ApplyPage() {
                         personalInfo: { ...formData.personalInfo!, dateOfBirth: e.target.value },
                       })
                     }
+                    className={hasError("dateOfBirth") ? "border-red-500" : ""}
                   />
+                  <FieldError field="dateOfBirth" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Gender *</Label>
+                  <Label className="flex items-center gap-1">
+                    Gender <span className="text-red-500">*</span>
+                  </Label>
                   <Select
                     value={formData.personalInfo?.gender}
                     onValueChange={(v) =>
@@ -460,7 +683,7 @@ export default function ApplyPage() {
                       })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={hasError("gender") ? "border-red-500" : ""}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -469,9 +692,12 @@ export default function ApplyPage() {
                       <SelectItem value="other">Other</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FieldError field="gender" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Marital Status *</Label>
+                  <Label className="flex items-center gap-1">
+                    Marital Status <span className="text-red-500">*</span>
+                  </Label>
                   <Select
                     value={formData.personalInfo?.maritalStatus}
                     onValueChange={(v) =>
@@ -484,7 +710,7 @@ export default function ApplyPage() {
                       })
                     }
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className={hasError("maritalStatus") ? "border-red-500" : ""}>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -494,12 +720,15 @@ export default function ApplyPage() {
                       <SelectItem value="widowed">Widowed</SelectItem>
                     </SelectContent>
                   </Select>
+                  <FieldError field="maritalStatus" />
                 </div>
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Nationality *</Label>
+                  <Label className="flex items-center gap-1">
+                    Nationality <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     value={formData.personalInfo?.nationality || ""}
                     onChange={(e) =>
@@ -508,10 +737,14 @@ export default function ApplyPage() {
                         personalInfo: { ...formData.personalInfo!, nationality: e.target.value },
                       })
                     }
+                    className={hasError("nationality") ? "border-red-500" : ""}
                   />
+                  <FieldError field="nationality" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Country of Residence *</Label>
+                  <Label className="flex items-center gap-1">
+                    Country of Residence <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     value={formData.personalInfo?.countryOfResidence || ""}
                     onChange={(e) =>
@@ -520,12 +753,16 @@ export default function ApplyPage() {
                         personalInfo: { ...formData.personalInfo!, countryOfResidence: e.target.value },
                       })
                     }
+                    className={hasError("countryOfResidence") ? "border-red-500" : ""}
                   />
+                  <FieldError field="countryOfResidence" />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label>Address *</Label>
+                <Label className="flex items-center gap-1">
+                  Address <span className="text-red-500">*</span>
+                </Label>
                 <Input
                   value={formData.personalInfo?.address || ""}
                   onChange={(e) =>
@@ -534,12 +771,16 @@ export default function ApplyPage() {
                       personalInfo: { ...formData.personalInfo!, address: e.target.value },
                     })
                   }
+                  className={hasError("address") ? "border-red-500" : ""}
                 />
+                <FieldError field="address" />
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="space-y-2">
-                  <Label>City *</Label>
+                  <Label className="flex items-center gap-1">
+                    City <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     value={formData.personalInfo?.city || ""}
                     onChange={(e) =>
@@ -548,10 +789,14 @@ export default function ApplyPage() {
                         personalInfo: { ...formData.personalInfo!, city: e.target.value },
                       })
                     }
+                    className={hasError("city") ? "border-red-500" : ""}
                   />
+                  <FieldError field="city" />
                 </div>
                 <div className="space-y-2">
-                  <Label>State/Province *</Label>
+                  <Label className="flex items-center gap-1">
+                    State/Province <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     value={formData.personalInfo?.state || ""}
                     onChange={(e) =>
@@ -560,7 +805,9 @@ export default function ApplyPage() {
                         personalInfo: { ...formData.personalInfo!, state: e.target.value },
                       })
                     }
+                    className={hasError("state") ? "border-red-500" : ""}
                   />
+                  <FieldError field="state" />
                 </div>
                 <div className="space-y-2">
                   <Label>Postal Code</Label>
@@ -578,7 +825,9 @@ export default function ApplyPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <Label>Phone Number *</Label>
+                  <Label className="flex items-center gap-1">
+                    Phone Number <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     value={formData.personalInfo?.phone || ""}
                     onChange={(e) =>
@@ -587,10 +836,14 @@ export default function ApplyPage() {
                         personalInfo: { ...formData.personalInfo!, phone: e.target.value },
                       })
                     }
+                    className={hasError("phone") ? "border-red-500" : ""}
                   />
+                  <FieldError field="phone" />
                 </div>
                 <div className="space-y-2">
-                  <Label>Email Address *</Label>
+                  <Label className="flex items-center gap-1">
+                    Email Address <span className="text-red-500">*</span>
+                  </Label>
                   <Input
                     type="email"
                     value={formData.personalInfo?.email || ""}
@@ -600,15 +853,26 @@ export default function ApplyPage() {
                         personalInfo: { ...formData.personalInfo!, email: e.target.value },
                       })
                     }
+                    className={hasError("email") ? "border-red-500" : ""}
                   />
+                  <FieldError field="email" />
                 </div>
               </div>
             </div>
           )}
 
-          {/* Step 3: Education History */}
+          {/* Step 3: Education History - with validation */}
           {currentStep === 3 && (
             <div className="space-y-6">
+              {showErrors && errors.educationHistory && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                  <p className="text-sm text-red-700 flex items-center gap-2">
+                    <AlertCircleIcon className="h-4 w-4" />
+                    {errors.educationHistory}
+                  </p>
+                </div>
+              )}
+
               {formData.educationHistory?.map((edu, index) => (
                 <Card key={edu.id} className="bg-muted/30">
                   <CardHeader className="pb-3">
@@ -627,7 +891,9 @@ export default function ApplyPage() {
                   <CardContent className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>Education Level *</Label>
+                        <Label className="flex items-center gap-1">
+                          Education Level <span className="text-red-500">*</span>
+                        </Label>
                         <Select
                           value={edu.level}
                           onValueChange={(v) => {
@@ -651,7 +917,9 @@ export default function ApplyPage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Institution Name *</Label>
+                        <Label className="flex items-center gap-1">
+                          Institution Name <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           value={edu.institution}
                           onChange={(e) => {
@@ -660,12 +928,16 @@ export default function ApplyPage() {
                             )
                             setFormData({ ...formData, educationHistory: updated })
                           }}
+                          className={hasError(`edu_${index}_institution`) ? "border-red-500" : ""}
                         />
+                        <FieldError field={`edu_${index}_institution`} />
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div className="space-y-2">
-                        <Label>Country *</Label>
+                        <Label className="flex items-center gap-1">
+                          Country <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           value={edu.country}
                           onChange={(e) => {
@@ -674,10 +946,14 @@ export default function ApplyPage() {
                             )
                             setFormData({ ...formData, educationHistory: updated })
                           }}
+                          className={hasError(`edu_${index}_country`) ? "border-red-500" : ""}
                         />
+                        <FieldError field={`edu_${index}_country`} />
                       </div>
                       <div className="space-y-2">
-                        <Label>Field of Study *</Label>
+                        <Label className="flex items-center gap-1">
+                          Field of Study <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           value={edu.fieldOfStudy}
                           onChange={(e) => {
@@ -686,12 +962,16 @@ export default function ApplyPage() {
                             )
                             setFormData({ ...formData, educationHistory: updated })
                           }}
+                          className={hasError(`edu_${index}_fieldOfStudy`) ? "border-red-500" : ""}
                         />
+                        <FieldError field={`edu_${index}_fieldOfStudy`} />
                       </div>
                     </div>
                     <div className="grid gap-4 md:grid-cols-3">
                       <div className="space-y-2">
-                        <Label>Start Date *</Label>
+                        <Label className="flex items-center gap-1">
+                          Start Date <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           type="date"
                           value={edu.startDate}
@@ -701,10 +981,14 @@ export default function ApplyPage() {
                             )
                             setFormData({ ...formData, educationHistory: updated })
                           }}
+                          className={hasError(`edu_${index}_startDate`) ? "border-red-500" : ""}
                         />
+                        <FieldError field={`edu_${index}_startDate`} />
                       </div>
                       <div className="space-y-2">
-                        <Label>End Date *</Label>
+                        <Label className="flex items-center gap-1">
+                          End Date <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           type="date"
                           value={edu.endDate}
@@ -714,7 +998,9 @@ export default function ApplyPage() {
                             )
                             setFormData({ ...formData, educationHistory: updated })
                           }}
+                          className={hasError(`edu_${index}_endDate`) ? "border-red-500" : ""}
                         />
+                        <FieldError field={`edu_${index}_endDate`} />
                       </div>
                       <div className="space-y-2">
                         <Label>GPA/Grade</Label>
@@ -761,9 +1047,18 @@ export default function ApplyPage() {
             </div>
           )}
 
-          {/* Step 4: Work Experience */}
+          {/* Step 4: Work Experience - with validation */}
           {currentStep === 4 && (
             <div className="space-y-6">
+              {showErrors && errors.workExperience && formData.educationLevel !== "bachelors" && (
+                <div className="p-3 rounded-lg bg-red-50 border border-red-200">
+                  <p className="text-sm text-red-700 flex items-center gap-2">
+                    <AlertCircleIcon className="h-4 w-4" />
+                    {errors.workExperience}
+                  </p>
+                </div>
+              )}
+
               {formData.educationLevel === "bachelors" ? (
                 <div className="text-center py-8">
                   <p className="text-muted-foreground">
@@ -794,7 +1089,9 @@ export default function ApplyPage() {
                       <CardContent className="space-y-4">
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="space-y-2">
-                            <Label>Company Name *</Label>
+                            <Label className="flex items-center gap-1">
+                              Company Name <span className="text-red-500">*</span>
+                            </Label>
                             <Input
                               value={work.companyName}
                               onChange={(e) => {
@@ -803,10 +1100,14 @@ export default function ApplyPage() {
                                 )
                                 setFormData({ ...formData, workExperience: updated })
                               }}
+                              className={hasError(`work_${index}_company`) ? "border-red-500" : ""}
                             />
+                            <FieldError field={`work_${index}_company`} />
                           </div>
                           <div className="space-y-2">
-                            <Label>Position/Title *</Label>
+                            <Label className="flex items-center gap-1">
+                              Position/Title <span className="text-red-500">*</span>
+                            </Label>
                             <Input
                               value={work.position}
                               onChange={(e) => {
@@ -815,12 +1116,16 @@ export default function ApplyPage() {
                                 )
                                 setFormData({ ...formData, workExperience: updated })
                               }}
+                              className={hasError(`work_${index}_position`) ? "border-red-500" : ""}
                             />
+                            <FieldError field={`work_${index}_position`} />
                           </div>
                         </div>
                         <div className="grid gap-4 md:grid-cols-3">
                           <div className="space-y-2">
-                            <Label>Country *</Label>
+                            <Label className="flex items-center gap-1">
+                              Country <span className="text-red-500">*</span>
+                            </Label>
                             <Input
                               value={work.country}
                               onChange={(e) => {
@@ -829,10 +1134,14 @@ export default function ApplyPage() {
                                 )
                                 setFormData({ ...formData, workExperience: updated })
                               }}
+                              className={hasError(`work_${index}_country`) ? "border-red-500" : ""}
                             />
+                            <FieldError field={`work_${index}_country`} />
                           </div>
                           <div className="space-y-2">
-                            <Label>Start Date *</Label>
+                            <Label className="flex items-center gap-1">
+                              Start Date <span className="text-red-500">*</span>
+                            </Label>
                             <Input
                               type="date"
                               value={work.startDate}
@@ -842,7 +1151,9 @@ export default function ApplyPage() {
                                 )
                                 setFormData({ ...formData, workExperience: updated })
                               }}
+                              className={hasError(`work_${index}_startDate`) ? "border-red-500" : ""}
                             />
+                            <FieldError field={`work_${index}_startDate`} />
                           </div>
                           <div className="space-y-2">
                             <Label>End Date</Label>
@@ -903,7 +1214,7 @@ export default function ApplyPage() {
             </div>
           )}
 
-          {/* Step 5: Test Scores */}
+          {/* Step 5: Test Scores - with validation */}
           {currentStep === 5 && (
             <div className="space-y-6">
               {formData.testScores?.map((test, index) => (
@@ -924,7 +1235,7 @@ export default function ApplyPage() {
                   <CardContent className="space-y-4">
                     <div className="grid gap-4 md:grid-cols-3">
                       <div className="space-y-2">
-                        <Label>Test Type *</Label>
+                        <Label>Test Type</Label>
                         <Select
                           value={test.testType}
                           onValueChange={(v) => {
@@ -950,7 +1261,9 @@ export default function ApplyPage() {
                         </Select>
                       </div>
                       <div className="space-y-2">
-                        <Label>Overall Score *</Label>
+                        <Label className="flex items-center gap-1">
+                          Overall Score <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           value={test.overallScore}
                           onChange={(e) => {
@@ -959,10 +1272,14 @@ export default function ApplyPage() {
                             )
                             setFormData({ ...formData, testScores: updated })
                           }}
+                          className={hasError(`test_${index}_score`) ? "border-red-500" : ""}
                         />
+                        <FieldError field={`test_${index}_score`} />
                       </div>
                       <div className="space-y-2">
-                        <Label>Date Taken *</Label>
+                        <Label className="flex items-center gap-1">
+                          Date Taken <span className="text-red-500">*</span>
+                        </Label>
                         <Input
                           type="date"
                           value={test.datesTaken}
@@ -972,7 +1289,9 @@ export default function ApplyPage() {
                             )
                             setFormData({ ...formData, testScores: updated })
                           }}
+                          className={hasError(`test_${index}_date`) ? "border-red-500" : ""}
                         />
+                        <FieldError field={`test_${index}_date`} />
                       </div>
                     </div>
                   </CardContent>
@@ -992,11 +1311,13 @@ export default function ApplyPage() {
             </div>
           )}
 
-          {/* Step 6: Program Preferences */}
+          {/* Step 6: Program Preferences - with validation */}
           {currentStep === 6 && (
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label>Preferred Countries (select multiple)</Label>
+                <Label className="flex items-center gap-1">
+                  Preferred Countries <span className="text-red-500">*</span>
+                </Label>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                   {["USA", "UK", "Canada", "Australia", "Germany", "France", "Netherlands", "Ireland"].map(
                     (country) => (
@@ -1025,6 +1346,7 @@ export default function ApplyPage() {
                     ),
                   )}
                 </div>
+                <FieldError field="preferredCountries" />
               </div>
 
               <div className="space-y-2">
@@ -1064,12 +1386,14 @@ export default function ApplyPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Preferred Intake</Label>
+                <Label className="flex items-center gap-1">
+                  Preferred Intake <span className="text-red-500">*</span>
+                </Label>
                 <Select
                   value={formData.intakePreference || ""}
                   onValueChange={(v) => setFormData({ ...formData, intakePreference: v })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className={hasError("intakePreference") ? "border-red-500" : ""}>
                     <SelectValue placeholder="Select intake" />
                   </SelectTrigger>
                   <SelectContent>
@@ -1078,6 +1402,7 @@ export default function ApplyPage() {
                     <SelectItem value="Fall 2026">Fall 2026</SelectItem>
                   </SelectContent>
                 </Select>
+                <FieldError field="intakePreference" />
               </div>
 
               <div className="space-y-2">
@@ -1266,11 +1591,14 @@ export default function ApplyPage() {
         </CardContent>
       </Card>
 
-      {/* Navigation Buttons */}
+      {/* Navigation Buttons - with validation */}
       <div className="flex justify-between">
         <Button
           variant="outline"
-          onClick={() => setCurrentStep((prev) => Math.max(1, prev - 1))}
+          onClick={() => {
+            setShowErrors(false)
+            setCurrentStep((prev) => Math.max(1, prev - 1))
+          }}
           disabled={currentStep === 1}
         >
           <ChevronLeftIcon className="mr-2 h-4 w-4" />
@@ -1284,7 +1612,7 @@ export default function ApplyPage() {
           </Button>
 
           {currentStep < steps.length ? (
-            <Button onClick={() => setCurrentStep((prev) => Math.min(steps.length, prev + 1))}>
+            <Button onClick={handleNextStep}>
               Next
               <ChevronRightIcon className="ml-2 h-4 w-4" />
             </Button>
