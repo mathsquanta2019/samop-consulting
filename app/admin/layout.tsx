@@ -55,64 +55,58 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const router = useRouter()
   const [admin, setAdmin] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [authState, setAuthState] = useState<"loading" | "authenticated" | "unauthenticated">("loading")
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/admin/login"
 
   useEffect(() => {
     if (isLoginPage) {
-      setIsLoading(false)
+      setAuthState("unauthenticated")
       return
     }
 
-    const checkAuth = () => {
-      console.log("[v0] Admin: Checking auth...")
-      const token = localStorage.getItem("samop_admin_token")
-      const userStr = localStorage.getItem("samop_admin_user")
+    const token = localStorage.getItem("samop_admin_token")
+    const userStr = localStorage.getItem("samop_admin_user")
 
-      console.log("[v0] Admin Token:", token ? "exists" : "missing")
-      console.log("[v0] Admin UserStr:", userStr ? "exists" : "missing")
+    if (!token || !userStr) {
+      setAuthState("unauthenticated")
+      router.replace("/admin/login")
+      return
+    }
 
-      if (!token || !userStr) {
-        console.log("[v0] Admin: No auth, redirecting to login")
-        router.push("/admin/login")
+    try {
+      const user = JSON.parse(userStr) as User
+
+      if (user.role !== "admin") {
+        localStorage.removeItem("samop_admin_token")
+        localStorage.removeItem("samop_admin_user")
+        setAuthState("unauthenticated")
+        router.replace("/admin/login")
         return
       }
 
-      try {
-        const user = JSON.parse(userStr) as User
-        console.log("[v0] Admin user data:", user)
-
-        if (user.role !== "admin") {
-          console.log("[v0] Admin: Not an admin, redirecting")
-          router.push("/admin/login")
-          return
-        }
-
-        setAdmin(user)
-        setIsLoading(false)
-        console.log("[v0] Admin: Auth success, loading set to false")
-      } catch (e) {
-        console.log("[v0] Admin: Error parsing user:", e)
-        router.push("/admin/login")
-      }
+      setAdmin(user)
+      setAuthState("authenticated")
+    } catch (e) {
+      setAuthState("unauthenticated")
+      router.replace("/admin/login")
     }
-
-    checkAuth()
   }, [isLoginPage, router])
 
   const handleLogout = () => {
     localStorage.removeItem("samop_admin_token")
     localStorage.removeItem("samop_admin_user")
-    router.push("/admin/login")
+    setAdmin(null)
+    setAuthState("unauthenticated")
+    router.replace("/admin/login")
   }
 
   if (isLoginPage) {
     return <>{children}</>
   }
 
-  if (isLoading) {
+  if (authState === "loading") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -123,7 +117,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
-  if (!admin) {
+  if (authState === "unauthenticated" || !admin) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -137,7 +131,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const initials = `${admin.firstName[0]}${admin.lastName[0]}`.toUpperCase()
 
   return (
-    <AdminContext.Provider value={{ admin, isLoading }}>
+    <AdminContext.Provider value={{ admin, isLoading: authState === "loading" }}>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="sticky top-0 z-50 border-b border-border bg-card">

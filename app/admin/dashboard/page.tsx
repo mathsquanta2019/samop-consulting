@@ -12,12 +12,8 @@ export default function AdminDashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    console.log("[v0] Admin Dashboard: admin=", admin)
-
     const fetchStats = async () => {
-      console.log("[v0] Admin Dashboard: Fetching stats...")
       const result = await getDashboardStats()
-      console.log("[v0] Admin Dashboard: Stats result:", result)
       if (result.success && result.data) {
         setStats(result.data)
       }
@@ -25,7 +21,18 @@ export default function AdminDashboardPage() {
     }
 
     fetchStats()
-  }, [admin])
+  }, [])
+
+  if (!admin) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto" />
+          <p className="mt-4 text-muted-foreground">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   if (isLoading) {
     return (

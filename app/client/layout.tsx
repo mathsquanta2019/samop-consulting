@@ -58,7 +58,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const router = useRouter()
   const [profile, setProfile] = useState<ClientProfile | null>(null)
   const [user, setUser] = useState<UserType | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [authState, setAuthState] = useState<"loading" | "authenticated" | "unauthenticated">("loading")
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/client/login"
@@ -74,72 +74,71 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           setProfile(result.data)
         }
       } catch (e) {
-        console.log("[v0] Error refreshing profile:", e)
+        // Ignore
       }
     }
   }, [])
 
   useEffect(() => {
+    // Skip auth check for login page
     if (isLoginPage) {
-      setIsLoading(false)
+      setAuthState("unauthenticated")
       return
     }
 
-    const checkAuth = () => {
-      console.log("[v0] Checking auth...")
-      const token = localStorage.getItem("samop_token")
-      const userStr = localStorage.getItem("samop_user")
+    // Check localStorage synchronously after mount
+    const token = localStorage.getItem("samop_token")
+    const userStr = localStorage.getItem("samop_user")
 
-      console.log("[v0] Token:", token ? "exists" : "missing")
-      console.log("[v0] UserStr:", userStr ? "exists" : "missing")
+    if (!token || !userStr) {
+      setAuthState("unauthenticated")
+      router.replace("/client/login")
+      return
+    }
 
-      if (!token || !userStr) {
-        console.log("[v0] No auth, redirecting to login")
-        router.push("/client/login")
+    try {
+      const userData = JSON.parse(userStr) as UserType
+
+      if (userData.role !== "client") {
+        localStorage.removeItem("samop_token")
+        localStorage.removeItem("samop_user")
+        setAuthState("unauthenticated")
+        router.replace("/client/login")
         return
       }
 
-      try {
-        const userData = JSON.parse(userStr) as UserType
-        console.log("[v0] User data:", userData)
+      // Set user and mark as authenticated
+      setUser(userData)
+      setAuthState("authenticated")
 
-        if (userData.role !== "client") {
-          console.log("[v0] Not a client, redirecting")
-          router.push("/client/login")
-          return
+      // Load profile in background
+      getClientProfile(userData.id).then((result) => {
+        if (result.success && result.data) {
+          setProfile(result.data)
         }
-
-        setUser(userData)
-        setIsLoading(false)
-        console.log("[v0] Auth success, loading set to false")
-
-        // Load profile in background
-        getClientProfile(userData.id).then((result) => {
-          console.log("[v0] Profile result:", result)
-          if (result.success && result.data) {
-            setProfile(result.data)
-          }
-        })
-      } catch (e) {
-        console.log("[v0] Error parsing user:", e)
-        router.push("/client/login")
-      }
+      })
+    } catch (e) {
+      setAuthState("unauthenticated")
+      router.replace("/client/login")
     }
-
-    checkAuth()
   }, [isLoginPage, router])
 
   const handleLogout = () => {
     localStorage.removeItem("samop_token")
     localStorage.removeItem("samop_user")
-    router.push("/client/login")
+    setUser(null)
+    setProfile(null)
+    setAuthState("unauthenticated")
+    router.replace("/client/login")
   }
 
+  // Login page - render children directly without layout
   if (isLoginPage) {
     return <>{children}</>
   }
 
-  if (isLoading) {
+  // Loading state
+  if (authState === "loading") {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -150,7 +149,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     )
   }
 
-  if (!user) {
+  // Unauthenticated - show redirecting message
+  if (authState === "unauthenticated" || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -165,7 +165,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const displayName = user.firstName
 
   return (
-    <ClientContext.Provider value={{ profile, user, isLoading, refreshProfile }}>
+    <ClientContext.Provider value={{ profile, user, isLoading: authState === "loading", refreshProfile }}>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="sticky top-0 z-50 border-b border-border bg-card">
