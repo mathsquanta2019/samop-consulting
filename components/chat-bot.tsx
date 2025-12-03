@@ -158,7 +158,7 @@ export function ChatBot() {
     return (
       <Button
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-secondary text-secondary-foreground shadow-xl hover:bg-secondary/90 z-[100] border-2 border-secondary-foreground/20"
+        className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl z-[9999] bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-background"
         size="icon"
       >
         <MessageCircle className="h-6 w-6" />
@@ -170,15 +170,15 @@ export function ChatBot() {
   return (
     <Card
       className={cn(
-        "fixed bottom-6 right-6 z-[100] shadow-2xl transition-all duration-300 border-2",
+        "fixed bottom-6 right-6 z-[9999] shadow-2xl transition-all duration-300 border-2 border-border bg-card",
         isMinimized ? "w-72 h-14" : "w-[380px] h-[500px]",
       )}
     >
       {/* Header */}
       <CardHeader className="flex flex-row items-center justify-between p-4 bg-primary text-primary-foreground rounded-t-lg">
         <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8">
-            <AvatarFallback className="bg-secondary text-secondary-foreground">
+          <Avatar className="h-8 w-8 border-2 border-primary-foreground/20">
+            <AvatarFallback className="bg-primary-foreground text-primary">
               <Bot className="h-4 w-4" />
             </AvatarFallback>
           </Avatar>

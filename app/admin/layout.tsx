@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState, createContext, useContext } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -51,9 +51,9 @@ const navItems = [
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const router = useRouter()
   const [admin, setAdmin] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/admin/login"
@@ -74,15 +74,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
     try {
       const user = JSON.parse(userStr)
-
       if (user.role !== "admin") {
         window.location.href = "/admin/login"
         return
       }
 
       setAdmin(user)
+      setIsAuthenticated(true)
       setIsLoading(false)
-    } catch (error) {
+    } catch {
       window.location.href = "/admin/login"
     }
   }, [isLoginPage])
@@ -108,7 +108,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
-  if (!admin) {
+  if (!isAuthenticated || !admin) {
     return null
   }
 

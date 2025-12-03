@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useEffect, useState, createContext, useContext, useCallback } from "react"
-import { useRouter, usePathname } from "next/navigation"
+import { usePathname } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -53,25 +53,21 @@ const navItems = [
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
-  const router = useRouter()
   const [profile, setProfile] = useState<ClientProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/client/login"
 
   const refreshProfile = useCallback(async () => {
-    try {
-      const userStr = localStorage.getItem("samop_user")
-      if (userStr) {
-        const user = JSON.parse(userStr)
-        const result = await getClientProfile(user.id)
-        if (result.success && result.data) {
-          setProfile(result.data)
-        }
+    const userStr = localStorage.getItem("samop_user")
+    if (userStr) {
+      const user = JSON.parse(userStr)
+      const result = await getClientProfile(user.id)
+      if (result.success && result.data) {
+        setProfile(result.data)
       }
-    } catch (error) {
-      console.error("Failed to refresh profile:", error)
     }
   }, [])
 
@@ -91,20 +87,21 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
 
     try {
       const user = JSON.parse(userStr)
-
       if (user.role !== "client") {
         window.location.href = "/client/login"
         return
       }
 
-      // Load profile in background, don't block rendering
+      setIsAuthenticated(true)
+      setIsLoading(false)
+
+      // Load profile in background - don't block UI
       getClientProfile(user.id).then((result) => {
         if (result.success && result.data) {
           setProfile(result.data)
         }
-        setIsLoading(false)
       })
-    } catch (error) {
+    } catch {
       window.location.href = "/client/login"
     }
   }, [isLoginPage])
@@ -120,8 +117,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return <>{children}</>
   }
 
-  // Show minimal loading state
-  if (isLoading && !profile) {
+  // Show loading only briefly while checking auth
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -132,7 +129,19 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     )
   }
 
-  const initials = profile ? `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase() : "U"
+  // If not authenticated after loading, don't render anything (redirect will happen)
+  if (!isAuthenticated) {
+    return null
+  }
+
+  const userStr = localStorage.getItem("samop_user")
+  const user = userStr ? JSON.parse(userStr) : null
+  const initials = profile
+    ? `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase()
+    : user
+      ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+      : "U"
+  const displayName = profile?.firstName || user?.firstName || "User"
 
   return (
     <ClientContext.Provider value={{ profile, isLoading, refreshProfile }}>
@@ -187,7 +196,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-primary text-primary-foreground text-sm">{initials}</AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:block text-sm font-medium">{profile?.firstName || "User"}</span>
+                  <span className="hidden sm:block text-sm font-medium">{displayName}</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
