@@ -16,19 +16,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  LayoutDashboard,
-  Users,
-  FileText,
-  Calendar,
-  MessageSquare,
-  Menu,
-  LogOut,
-  Settings,
-  ChevronDown,
-  Bell,
-  Clock,
-  Ticket,
-} from "lucide-react"
+  DashboardIcon,
+  UsersIcon,
+  FileTextIcon,
+  CalendarIcon,
+  MessageIcon,
+  MenuIcon,
+  LogOutIcon,
+  SettingsIcon,
+  ChevronDownIcon,
+  BellIcon,
+  ClockIcon,
+  TicketIcon,
+} from "@/components/icons"
 import type { User } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
@@ -41,13 +41,13 @@ const AdminContext = createContext<AdminContextType>({ admin: null })
 export const useAdmin = () => useContext(AdminContext)
 
 const navItems = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/admin/clients", label: "Clients", icon: Users },
-  { href: "/admin/applications", label: "Applications", icon: FileText },
-  { href: "/admin/appointments", label: "Appointments", icon: Calendar },
-  { href: "/admin/availability", label: "Availability", icon: Clock },
-  { href: "/admin/access-codes", label: "Access Codes", icon: Ticket },
-  { href: "/admin/messages", label: "Messages", icon: MessageSquare },
+  { href: "/admin/dashboard", label: "Dashboard", icon: DashboardIcon },
+  { href: "/admin/clients", label: "Clients", icon: UsersIcon },
+  { href: "/admin/applications", label: "Applications", icon: FileTextIcon },
+  { href: "/admin/appointments", label: "Appointments", icon: CalendarIcon },
+  { href: "/admin/availability", label: "Availability", icon: ClockIcon },
+  { href: "/admin/access-codes", label: "Access Codes", icon: TicketIcon },
+  { href: "/admin/messages", label: "Messages", icon: MessageIcon },
 ]
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
@@ -139,7 +139,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                 <SheetTrigger asChild className="lg:hidden">
                   <Button variant="ghost" size="icon">
-                    <Menu className="h-5 w-5" />
+                    <MenuIcon className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-64 p-0 bg-sidebar">
@@ -183,7 +183,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
             <div className="flex items-center gap-4">
               <Button variant="ghost" size="icon" className="relative">
-                <Bell className="h-5 w-5" />
+                <BellIcon className="h-5 w-5" />
                 <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-destructive text-[10px] font-medium text-white flex items-center justify-center">
                   3
                 </span>
@@ -196,19 +196,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                       <AvatarFallback className="bg-primary text-primary-foreground text-sm">{initials}</AvatarFallback>
                     </Avatar>
                     <span className="hidden sm:block text-sm font-medium">{admin.firstName}</span>
-                    <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
                   <DropdownMenuItem asChild>
                     <Link href="/admin/settings" className="flex items-center cursor-pointer">
-                      <Settings className="mr-2 h-4 w-4" />
+                      <SettingsIcon className="mr-2 h-4 w-4" />
                       Settings
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
-                    <LogOut className="mr-2 h-4 w-4" />
+                    <LogOutIcon className="mr-2 h-4 w-4" />
                     Log out
                   </DropdownMenuItem>
                 </DropdownMenuContent>

@@ -16,16 +16,16 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  LayoutDashboard,
-  FileText,
-  FolderOpen,
-  Calendar,
-  Menu,
-  LogOut,
-  User,
-  Settings,
-  ChevronDown,
-} from "lucide-react"
+  DashboardIcon,
+  FileTextIcon,
+  FolderIcon,
+  CalendarIcon,
+  MenuIcon,
+  LogOutIcon,
+  UserIcon,
+  SettingsIcon,
+  ChevronDownIcon,
+} from "@/components/icons"
 import type { ClientProfile, User as UserType } from "@/lib/types"
 import { getClientProfile } from "@/lib/api"
 import { cn } from "@/lib/utils"
@@ -45,10 +45,10 @@ const ClientContext = createContext<ClientContextType>({
 export const useClient = () => useContext(ClientContext)
 
 const navItems = [
-  { href: "/client/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/client/applications", label: "Applications", icon: FileText },
-  { href: "/client/documents", label: "Documents", icon: FolderOpen },
-  { href: "/client/appointments", label: "Appointments", icon: Calendar },
+  { href: "/client/dashboard", label: "Dashboard", icon: DashboardIcon },
+  { href: "/client/applications", label: "Applications", icon: FileTextIcon },
+  { href: "/client/documents", label: "Documents", icon: FolderIcon },
+  { href: "/client/appointments", label: "Appointments", icon: CalendarIcon },
 ]
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
@@ -164,7 +164,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
               <Sheet open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                 <SheetTrigger asChild className="lg:hidden">
                   <Button variant="ghost" size="icon">
-                    <Menu className="h-5 w-5" />
+                    <MenuIcon className="h-5 w-5" />
                   </Button>
                 </SheetTrigger>
                 <SheetContent side="left" className="w-64 p-0 bg-sidebar">
@@ -208,25 +208,25 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                     <AvatarFallback className="bg-primary text-primary-foreground text-sm">{initials}</AvatarFallback>
                   </Avatar>
                   <span className="hidden sm:block text-sm font-medium">{user.firstName}</span>
-                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                  <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48">
                 <DropdownMenuItem asChild>
                   <Link href="/client/profile" className="flex items-center cursor-pointer">
-                    <User className="mr-2 h-4 w-4" />
+                    <UserIcon className="mr-2 h-4 w-4" />
                     Profile
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
                   <Link href="/client/settings" className="flex items-center cursor-pointer">
-                    <Settings className="mr-2 h-4 w-4" />
+                    <SettingsIcon className="mr-2 h-4 w-4" />
                     Settings
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
-                  <LogOut className="mr-2 h-4 w-4" />
+                  <LogOutIcon className="mr-2 h-4 w-4" />
                   Log out
                 </DropdownMenuItem>
               </DropdownMenuContent>
