@@ -1,6 +1,6 @@
 import Link from "next/link"
 import Image from "next/image"
-import { Instagram, Facebook } from "lucide-react"
+import { InstagramIcon, FacebookIcon } from "@/components/icons"
 
 // X (Twitter) icon component
 function XIcon({ className }: { className?: string }) {
@@ -11,7 +11,6 @@ function XIcon({ className }: { className?: string }) {
   )
 }
 
-// TikTok icon component since it's not in lucide
 function TikTokIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -20,7 +19,6 @@ function TikTokIcon({ className }: { className?: string }) {
   )
 }
 
-// Threads icon component
 function ThreadsIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -30,10 +28,10 @@ function ThreadsIcon({ className }: { className?: string }) {
 }
 
 const socialLinks = [
-  { icon: Instagram, href: "https://instagram.com/samopconsulting", label: "Instagram" },
+  { icon: InstagramIcon, href: "https://instagram.com/samopconsulting", label: "Instagram" },
   { icon: XIcon, href: "https://x.com/samopconsulting", label: "X" },
   { icon: TikTokIcon, href: "https://tiktok.com/@samopconsulting", label: "TikTok" },
-  { icon: Facebook, href: "https://facebook.com/samopconsulting", label: "Facebook" },
+  { icon: FacebookIcon, href: "https://facebook.com/samopconsulting", label: "Facebook" },
   { icon: ThreadsIcon, href: "https://threads.net/@samopconsulting", label: "Threads" },
 ]
 

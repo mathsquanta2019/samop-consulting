@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, AlertCircle } from "lucide-react"
+import { EyeIcon, EyeOffIcon, AlertCircleIcon } from "@/components/icons"
 import { loginUser } from "@/lib/api"
 
 export default function ClientLoginPage() {
@@ -36,7 +36,6 @@ export default function ClientLoginPage() {
         localStorage.setItem("samop_token", result.data.token)
         localStorage.setItem("samop_user", JSON.stringify(result.data.user))
 
-        // Use window.location for a full page navigation to ensure layout re-renders
         window.location.href = "/client/dashboard"
       } else {
         setError(result.error || "Invalid credentials. Please try again.")
@@ -69,7 +68,7 @@ export default function ClientLoginPage() {
           <CardContent>
             {error && (
               <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
+                <AlertCircleIcon className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -106,7 +105,7 @@ export default function ClientLoginPage() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     disabled={isLoading}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
                   </button>
                 </div>
               </div>

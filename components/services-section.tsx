@@ -1,39 +1,39 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { GraduationCap, Plane, FileCheck, Award, Globe, Users } from "lucide-react"
+import { GraduationCapIcon, PlaneIcon, FileCheckIcon, AwardIcon, GlobeIcon, UsersIcon } from "@/components/icons"
 
 const services = [
   {
-    icon: GraduationCap,
+    icon: GraduationCapIcon,
     title: "University Admissions",
     description: "Complete guidance for Bachelor's, Master's, and PhD admissions to top universities worldwide.",
     features: ["Application Review", "SOP Guidance", "Interview Prep"],
   },
   {
-    icon: Plane,
+    icon: PlaneIcon,
     title: "Visa Processing",
     description: "End-to-end visa application support with real-time updates and interview preparation.",
     features: ["Document Checklist", "Application Support", "Interview Coaching"],
   },
   {
-    icon: FileCheck,
+    icon: FileCheckIcon,
     title: "SEVIS Fee & Registration",
     description: "Seamless SEVIS I-901 fee payment assistance for US-bound students.",
     features: ["Fee Payment", "Form Completion", "Confirmation Tracking"],
   },
   {
-    icon: Award,
+    icon: AwardIcon,
     title: "Credential Evaluation",
     description: "WES, ECE, and other credential evaluation services for academic qualifications.",
     features: ["WES Evaluation", "ECE Reports", "Express Processing"],
   },
   {
-    icon: Globe,
+    icon: GlobeIcon,
     title: "Immigration Consulting",
     description: "Standardized immigration process with qualification assessment before proceeding.",
     features: ["Eligibility Check", "Document Review", "Process Guidance"],
   },
   {
-    icon: Users,
+    icon: UsersIcon,
     title: "Ongoing Support",
     description: "Dedicated support throughout your journey with real-time status updates.",
     features: ["24/7 Support", "Progress Tracking", "Expert Advisors"],

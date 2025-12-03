@@ -1,4 +1,4 @@
-import { CheckCircle2 } from "lucide-react"
+import { CheckCircle2Icon } from "@/components/icons"
 
 const highlights = [
   "100% Success Rate in Immigration Consulting",
@@ -47,7 +47,7 @@ export function AboutSection() {
             <ul className="mt-8 grid gap-3 sm:grid-cols-2">
               {highlights.map((item, index) => (
                 <li key={index} className="flex items-start gap-2">
-                  <CheckCircle2 className="h-5 w-5 text-secondary mt-0.5 flex-shrink-0" />
+                  <CheckCircle2Icon className="h-5 w-5 text-secondary mt-0.5 flex-shrink-0" />
                   <span className="text-sm text-foreground">{item}</span>
                 </li>
               ))}

@@ -1,6 +1,14 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { Users, FileText, Clock, Calendar, TrendingUp, CheckCircle, UserPlus } from "lucide-react"
+import {
+  UsersIcon,
+  FileTextIcon,
+  ClockIcon,
+  CalendarIcon,
+  TrendingUpIcon,
+  CheckCircleIcon,
+  UserPlusIcon,
+} from "@/components/icons"
 import type { DashboardStats } from "@/lib/types"
 import Link from "next/link"
 
@@ -11,7 +19,6 @@ interface AdminOverviewProps {
 export function AdminOverview({ stats }: AdminOverviewProps) {
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Admin Dashboard</h1>
@@ -19,18 +26,17 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
         </div>
         <Link href="/admin/clients">
           <Button className="bg-primary text-primary-foreground">
-            <UserPlus className="mr-2 h-4 w-4" />
+            <UserPlusIcon className="mr-2 h-4 w-4" />
             Onboard New Client
           </Button>
         </Link>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Clients</CardTitle>
-            <Users className="h-4 w-4 text-primary" />
+            <UsersIcon className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">{stats.totalClients}</div>
@@ -40,7 +46,7 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Active Applications</CardTitle>
-            <FileText className="h-4 w-4 text-blue-500" />
+            <FileTextIcon className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">{stats.activeApplications}</div>
@@ -50,7 +56,7 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Pending Documents</CardTitle>
-            <Clock className="h-4 w-4 text-orange-500" />
+            <ClockIcon className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">{stats.pendingDocuments}</div>
@@ -60,7 +66,7 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Appointments</CardTitle>
-            <Calendar className="h-4 w-4 text-secondary" />
+            <CalendarIcon className="h-4 w-4 text-secondary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">{stats.upcomingAppointments}</div>
@@ -70,7 +76,7 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Completed (Month)</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
+            <CheckCircleIcon className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">{stats.completedThisMonth}</div>
@@ -80,7 +86,7 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Success Rate</CardTitle>
-            <TrendingUp className="h-4 w-4 text-green-600" />
+            <TrendingUpIcon className="h-4 w-4 text-green-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{stats.successRate}%</div>
@@ -88,13 +94,12 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
         </Card>
       </div>
 
-      {/* Quick Actions */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="bg-card hover:shadow-md transition-shadow cursor-pointer">
           <Link href="/admin/clients">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-card-foreground">
-                <Users className="h-5 w-5 text-primary" />
+                <UsersIcon className="h-5 w-5 text-primary" />
                 Manage Clients
               </CardTitle>
               <CardDescription>View all clients, initiate onboarding, and manage profiles</CardDescription>
@@ -106,7 +111,7 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
           <Link href="/admin/applications">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-card-foreground">
-                <FileText className="h-5 w-5 text-blue-500" />
+                <FileTextIcon className="h-5 w-5 text-blue-500" />
                 Review Applications
               </CardTitle>
               <CardDescription>Update status, review documents, and manage processes</CardDescription>
@@ -118,7 +123,7 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
           <Link href="/admin/appointments">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-card-foreground">
-                <Calendar className="h-5 w-5 text-secondary" />
+                <CalendarIcon className="h-5 w-5 text-secondary" />
                 View Appointments
               </CardTitle>
               <CardDescription>Manage scheduled consultations and meetings</CardDescription>
@@ -127,7 +132,6 @@ export function AdminOverview({ stats }: AdminOverviewProps) {
         </Card>
       </div>
 
-      {/* Recent Activity Placeholder */}
       <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-card-foreground">Recent Activity</CardTitle>

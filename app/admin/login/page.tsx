@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Eye, EyeOff, AlertCircle, Shield } from "lucide-react"
+import { EyeIcon, EyeOffIcon, AlertCircleIcon, ShieldIcon } from "@/components/icons"
 import { loginUser } from "@/lib/api"
 
 export default function AdminLoginPage() {
@@ -42,7 +42,6 @@ export default function AdminLoginPage() {
         localStorage.setItem("samop_admin_token", result.data.token)
         localStorage.setItem("samop_admin_user", JSON.stringify(result.data.user))
 
-        // Use window.location for a full page navigation
         window.location.href = "/admin/dashboard"
       } else {
         setError(result.error || "Invalid credentials. Please try again.")
@@ -70,7 +69,7 @@ export default function AdminLoginPage() {
         <Card className="bg-card">
           <CardHeader className="text-center">
             <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-primary/10 mx-auto mb-4">
-              <Shield className="h-7 w-7 text-primary" />
+              <ShieldIcon className="h-7 w-7 text-primary" />
             </div>
             <CardTitle className="text-2xl text-card-foreground">Admin Access</CardTitle>
             <CardDescription>Sign in to the administration panel</CardDescription>
@@ -78,7 +77,7 @@ export default function AdminLoginPage() {
           <CardContent>
             {error && (
               <Alert variant="destructive" className="mb-4">
-                <AlertCircle className="h-4 w-4" />
+                <AlertCircleIcon className="h-4 w-4" />
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
@@ -115,7 +114,7 @@ export default function AdminLoginPage() {
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     disabled={isLoading}
                   >
-                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    {showPassword ? <EyeOffIcon className="h-4 w-4" /> : <EyeIcon className="h-4 w-4" />}
                   </button>
                 </div>
               </div>

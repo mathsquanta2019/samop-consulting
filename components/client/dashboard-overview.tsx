@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { FileText, CheckCircle, AlertCircle, Calendar } from "lucide-react"
+import { FileTextIcon, CheckCircleIcon, AlertCircleIcon, CalendarIcon } from "@/components/icons"
 import type { ClientProfile, ApplicationStatus } from "@/lib/types"
 
 interface DashboardOverviewProps {
@@ -29,18 +29,16 @@ export function DashboardOverview({ profile }: DashboardOverviewProps) {
 
   return (
     <div className="space-y-6">
-      {/* Welcome Header */}
       <div>
         <h1 className="text-2xl font-bold text-foreground">Welcome back, {profile.firstName}!</h1>
         <p className="text-muted-foreground">Here's an overview of your application status and pending tasks.</p>
       </div>
 
-      {/* Stats Cards */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Active Applications</CardTitle>
-            <FileText className="h-4 w-4 text-primary" />
+            <FileTextIcon className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">{totalApplications}</div>
@@ -50,7 +48,7 @@ export function DashboardOverview({ profile }: DashboardOverviewProps) {
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Documents Approved</CardTitle>
-            <CheckCircle className="h-4 w-4 text-green-500" />
+            <CheckCircleIcon className="h-4 w-4 text-green-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">
@@ -62,7 +60,7 @@ export function DashboardOverview({ profile }: DashboardOverviewProps) {
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Pending Actions</CardTitle>
-            <AlertCircle className="h-4 w-4 text-orange-500" />
+            <AlertCircleIcon className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">{pendingDocuments}</div>
@@ -72,7 +70,7 @@ export function DashboardOverview({ profile }: DashboardOverviewProps) {
         <Card className="bg-card">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Upcoming Appointments</CardTitle>
-            <Calendar className="h-4 w-4 text-secondary" />
+            <CalendarIcon className="h-4 w-4 text-secondary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-card-foreground">{upcomingAppointments}</div>
@@ -80,7 +78,6 @@ export function DashboardOverview({ profile }: DashboardOverviewProps) {
         </Card>
       </div>
 
-      {/* Application Progress */}
       <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-card-foreground">Application Progress</CardTitle>
@@ -115,7 +112,6 @@ export function DashboardOverview({ profile }: DashboardOverviewProps) {
         </CardContent>
       </Card>
 
-      {/* Recent Activity */}
       <Card className="bg-card">
         <CardHeader>
           <CardTitle className="text-card-foreground">Recent Documents</CardTitle>
@@ -130,7 +126,7 @@ export function DashboardOverview({ profile }: DashboardOverviewProps) {
                 <div key={doc.id} className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                      <FileText className="h-5 w-5 text-muted-foreground" />
+                      <FileTextIcon className="h-5 w-5 text-muted-foreground" />
                     </div>
                     <div>
                       <p className="font-medium text-card-foreground text-sm">{doc.name}</p>

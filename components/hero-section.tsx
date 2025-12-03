@@ -1,6 +1,6 @@
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
-import { GraduationCap, CheckCircle } from "lucide-react"
+import { GraduationCapIcon, CheckCircleIcon } from "@/components/icons"
 
 export function HeroSection() {
   return (
@@ -10,7 +10,7 @@ export function HeroSection() {
         <div className="grid gap-12 lg:grid-cols-2 lg:gap-8 items-center">
           <div className="text-center lg:text-left">
             <div className="inline-flex items-center gap-2 rounded-full bg-secondary/20 px-4 py-2 text-sm font-medium text-secondary mb-6">
-              <CheckCircle className="h-4 w-4" />
+              <CheckCircleIcon className="h-4 w-4" />
               100% Success Rate in Immigration Consulting
             </div>
             <h1 className="font-serif text-4xl font-bold tracking-tight text-primary-foreground sm:text-5xl lg:text-6xl text-balance">
@@ -58,12 +58,12 @@ export function HeroSection() {
           </div>
           <div className="relative hidden lg:block">
             <div className="relative rounded-2xl overflow-hidden shadow-2xl">
-              <img src="/diverse-students-graduation-celebration.jpg" alt="Students celebrating graduation" className="w-full h-auto" />
+              <img src="/diverse-students-celebrating-graduation.jpg" alt="Students celebrating graduation" className="w-full h-auto" />
             </div>
             <div className="absolute -bottom-6 -left-6 rounded-xl bg-card p-4 shadow-lg">
               <div className="flex items-center gap-3">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-secondary/20">
-                  <GraduationCap className="h-6 w-6 text-secondary" />
+                  <GraduationCapIcon className="h-6 w-6 text-secondary" />
                 </div>
                 <div>
                   <p className="font-semibold text-card-foreground">Trusted Partner</p>
