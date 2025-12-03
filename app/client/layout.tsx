@@ -55,7 +55,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname()
   const [profile, setProfile] = useState<ClientProfile | null>(null)
   const [user, setUser] = useState<UserType | null>(null)
-  const [isReady, setIsReady] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/client/login"
@@ -71,50 +71,50 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
           setProfile(result.data)
         }
       } catch (e) {
-        // Ignore
+        console.error("Error refreshing profile:", e)
       }
     }
   }, [])
 
   useEffect(() => {
-    // Login page - just render it
     if (isLoginPage) {
-      setIsReady(true)
+      setIsLoading(false)
       return
     }
 
-    // Check authentication
-    const token = localStorage.getItem("samop_token")
-    const userStr = localStorage.getItem("samop_user")
+    const checkAuth = () => {
+      const token = localStorage.getItem("samop_token")
+      const userStr = localStorage.getItem("samop_user")
 
-    if (!token || !userStr) {
-      window.location.href = "/client/login"
-      return
-    }
-
-    try {
-      const userData = JSON.parse(userStr) as UserType
-
-      if (userData.role !== "client") {
-        localStorage.removeItem("samop_token")
-        localStorage.removeItem("samop_user")
+      if (!token || !userStr) {
         window.location.href = "/client/login"
         return
       }
 
-      // User is valid - set state and render
-      setUser(userData)
-      setIsReady(true)
-
-      // Load profile in background (not blocking)
-      getClientProfile(userData.id).then((result) => {
-        if (result.success && result.data) {
-          setProfile(result.data)
+      try {
+        const userData = JSON.parse(userStr) as UserType
+        if (userData.role !== "client") {
+          localStorage.removeItem("samop_token")
+          localStorage.removeItem("samop_user")
+          window.location.href = "/client/login"
+          return
         }
-      })
-    } catch (e) {
-      window.location.href = "/client/login"
+
+        setUser(userData)
+        setIsLoading(false)
+
+        // Load profile in background
+        getClientProfile(userData.id).then((result) => {
+          if (result.success && result.data) {
+            setProfile(result.data)
+          }
+        })
+      } catch (e) {
+        window.location.href = "/client/login"
+      }
     }
+
+    checkAuth()
   }, [isLoginPage])
 
   const handleLogout = () => {
@@ -123,13 +123,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     window.location.href = "/client/login"
   }
 
-  // Login page - render directly
+  // Login page renders directly without layout
   if (isLoginPage) {
     return <>{children}</>
   }
 
-  // Not ready yet - show loading
-  if (!isReady) {
+  // Show loading while checking auth
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -140,7 +140,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     )
   }
 
-  // No user - redirect happening
+  // No user means redirect is happening
   if (!user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -153,7 +153,6 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }
 
   const initials = `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
-  const displayName = user.firstName
 
   return (
     <ClientContext.Provider value={{ profile, user, refreshProfile }}>
@@ -208,7 +207,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-primary text-primary-foreground text-sm">{initials}</AvatarFallback>
                   </Avatar>
-                  <span className="hidden sm:block text-sm font-medium">{displayName}</span>
+                  <span className="hidden sm:block text-sm font-medium">{user.firstName}</span>
                   <ChevronDown className="h-4 w-4 text-muted-foreground" />
                 </Button>
               </DropdownMenuTrigger>
