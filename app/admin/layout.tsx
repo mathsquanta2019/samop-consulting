@@ -27,6 +27,7 @@ import {
   ChevronDown,
   Bell,
   Clock,
+  Ticket,
 } from "lucide-react"
 import type { User } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -46,6 +47,7 @@ const navItems = [
   { href: "/admin/applications", label: "Applications", icon: FileText },
   { href: "/admin/appointments", label: "Appointments", icon: Calendar },
   { href: "/admin/availability", label: "Availability", icon: Clock },
+  { href: "/admin/access-codes", label: "Access Codes", icon: Ticket },
   { href: "/admin/messages", label: "Messages", icon: MessageSquare },
 ]
 
@@ -53,7 +55,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname()
   const [admin, setAdmin] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/admin/login"
@@ -73,14 +74,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
 
     try {
-      const user = JSON.parse(userStr)
+      const user = JSON.parse(userStr) as User
       if (user.role !== "admin") {
         window.location.href = "/admin/login"
         return
       }
 
       setAdmin(user)
-      setIsAuthenticated(true)
       setIsLoading(false)
     } catch {
       window.location.href = "/admin/login"
@@ -108,7 +108,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
-  if (!isAuthenticated || !admin) {
+  if (!admin) {
     return null
   }
 

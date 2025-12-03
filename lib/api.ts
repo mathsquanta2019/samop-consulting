@@ -21,6 +21,10 @@ import type {
   AvailabilitySchedule,
   TimeSlot,
   BookingSlot,
+  AppointmentFee,
+  AccessCode,
+  Payment,
+  PaymentProvider,
 } from "./types"
 
 import {
@@ -36,6 +40,8 @@ import {
   mockOnboardingInvites,
   mockAvailability,
   mockWeeklyAvailability,
+  mockAppointmentFees,
+  mockAccessCodes,
 } from "./mock-data"
 
 // Simulate API delay
@@ -530,4 +536,204 @@ export async function updateNotificationPreferences(
 ): Promise<ApiResponse<null>> {
   await delay(400)
   return { success: true, data: null, message: "Preferences updated successfully!" }
+}
+
+// ==========================================
+// APPOINTMENT FEES APIs
+// ==========================================
+
+export async function getAppointmentFees(): Promise<ApiResponse<AppointmentFee[]>> {
+  await delay(200)
+  return { success: true, data: mockAppointmentFees }
+}
+
+export async function getAppointmentFee(serviceType: string): Promise<ApiResponse<AppointmentFee | null>> {
+  await delay(200)
+  const fee = mockAppointmentFees.find((f) => f.serviceType === serviceType)
+  return { success: true, data: fee || null }
+}
+
+// ==========================================
+// ACCESS CODE APIs
+// ==========================================
+
+export async function getAccessCodes(): Promise<ApiResponse<AccessCode[]>> {
+  await delay(300)
+  return { success: true, data: mockAccessCodes }
+}
+
+export async function createAccessCode(data: {
+  clientEmail: string
+  clientName: string
+  serviceType: string
+  expiresInDays: number
+}): Promise<ApiResponse<AccessCode>> {
+  await delay(500)
+  const code: AccessCode = {
+    id: "ac_" + Date.now(),
+    code: "SAMOP-" + Math.random().toString(36).substring(2, 8).toUpperCase(),
+    clientEmail: data.clientEmail,
+    clientName: data.clientName,
+    serviceType: data.serviceType as any,
+    isUsed: false,
+    expiresAt: new Date(Date.now() + data.expiresInDays * 24 * 60 * 60 * 1000).toISOString(),
+    createdBy: "admin",
+    createdAt: new Date().toISOString(),
+  }
+  mockAccessCodes.push(code)
+  return { success: true, data: code, message: "Access code created and sent to client!" }
+}
+
+export async function validateAccessCode(code: string): Promise<ApiResponse<AccessCode | null>> {
+  await delay(300)
+  const accessCode = mockAccessCodes.find((ac) => ac.code === code && !ac.isUsed && new Date(ac.expiresAt) > new Date())
+  if (accessCode) {
+    return { success: true, data: accessCode }
+  }
+  return { success: false, error: "Invalid or expired access code" }
+}
+
+export async function markAccessCodeAsUsed(code: string): Promise<ApiResponse<null>> {
+  await delay(300)
+  const accessCode = mockAccessCodes.find((ac) => ac.code === code)
+  if (accessCode) {
+    accessCode.isUsed = true
+    return { success: true, data: null }
+  }
+  return { success: false, error: "Access code not found" }
+}
+
+// ==========================================
+// PAYMENT APIs
+// ==========================================
+
+export async function initiatePayment(data: {
+  appointmentId: string
+  amount: number
+  currency: string
+  provider: PaymentProvider
+  email: string
+}): Promise<ApiResponse<{ reference: string; paymentUrl: string }>> {
+  await delay(500)
+  const reference = "PAY-" + Date.now() + "-" + Math.random().toString(36).substring(2, 8).toUpperCase()
+
+  // Mock payment URLs for different providers
+  const paymentUrls: Record<PaymentProvider, string> = {
+    paystack: `https://paystack.com/pay/${reference}`,
+    flutterwave: `https://flutterwave.com/pay/${reference}`,
+    paypal: `https://paypal.com/checkout/${reference}`,
+    stripe: `https://checkout.stripe.com/${reference}`,
+  }
+
+  return {
+    success: true,
+    data: {
+      reference,
+      paymentUrl: paymentUrls[data.provider],
+    },
+  }
+}
+
+export async function verifyPayment(reference: string): Promise<ApiResponse<Payment>> {
+  await delay(500)
+  // Mock successful payment verification
+  const payment: Payment = {
+    id: "pmt_" + Date.now(),
+    appointmentId: "apt_pending",
+    amount: 50,
+    currency: "USD",
+    provider: "stripe",
+    status: "completed",
+    reference,
+    createdAt: new Date().toISOString(),
+  }
+  return { success: true, data: payment }
+}
+
+export async function createAppointmentWithPayment(data: {
+  clientName: string
+  clientEmail: string
+  clientPhone: string
+  type: Appointment["type"]
+  date: string
+  time: string
+  duration: number
+  notes?: string
+  paymentReference?: string
+  accessCode?: string
+}): Promise<ApiResponse<Appointment>> {
+  await delay(500)
+  const newApt: Appointment = {
+    id: "apt_" + Date.now(),
+    clientName: data.clientName,
+    clientEmail: data.clientEmail,
+    clientPhone: data.clientPhone,
+    type: data.type,
+    date: data.date,
+    time: data.time,
+    duration: data.duration,
+    notes: data.notes,
+    status: "scheduled",
+    createdAt: new Date().toISOString(),
+  }
+
+  // If access code was used, mark it as used
+  if (data.accessCode) {
+    const accessCodeResult = await markAccessCodeAsUsed(data.accessCode)
+    if (!accessCodeResult.success) {
+      return accessCodeResult
+    }
+  }
+
+  return { success: true, data: newApt, message: "Appointment booked successfully!" }
+}
+
+export async function adminScheduleAppointment(data: {
+  clientId: string
+  clientName: string
+  clientEmail: string
+  clientPhone: string
+  type: Appointment["type"]
+  date: string
+  time: string
+  duration: number
+  notes?: string
+  sendAccessCode: boolean
+}): Promise<ApiResponse<{ appointment: Appointment; accessCode?: AccessCode }>> {
+  await delay(500)
+  const newApt: Appointment = {
+    id: "apt_" + Date.now(),
+    clientId: data.clientId,
+    clientName: data.clientName,
+    clientEmail: data.clientEmail,
+    clientPhone: data.clientPhone,
+    type: data.type,
+    date: data.date,
+    time: data.time,
+    duration: data.duration,
+    notes: data.notes,
+    status: "scheduled",
+    createdAt: new Date().toISOString(),
+  }
+
+  let accessCode: AccessCode | undefined
+  if (data.sendAccessCode) {
+    const result = await createAccessCode({
+      clientEmail: data.clientEmail,
+      clientName: data.clientName,
+      serviceType: data.type,
+      expiresInDays: 7,
+    })
+    if (result.success && result.data) {
+      accessCode = result.data
+    }
+  }
+
+  return {
+    success: true,
+    data: { appointment: newApt, accessCode },
+    message: accessCode
+      ? "Appointment scheduled and access code sent to client!"
+      : "Appointment scheduled successfully!",
+  }
 }

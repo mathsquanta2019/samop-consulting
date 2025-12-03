@@ -206,6 +206,41 @@ export interface AvailabilitySchedule {
   updatedAt: string
 }
 
+// Payment and Access Code Types
+export type PaymentProvider = "paystack" | "flutterwave" | "paypal" | "stripe"
+export type PaymentStatus = "pending" | "completed" | "failed" | "refunded"
+
+export interface AppointmentFee {
+  id: string
+  serviceType: AppointmentType
+  amount: number
+  currency: string
+  description: string
+}
+
+export interface Payment {
+  id: string
+  appointmentId: string
+  amount: number
+  currency: string
+  provider: PaymentProvider
+  status: PaymentStatus
+  reference: string
+  createdAt: string
+}
+
+export interface AccessCode {
+  id: string
+  code: string
+  clientEmail: string
+  clientName: string
+  serviceType: AppointmentType
+  isUsed: boolean
+  expiresAt: string
+  createdBy: string
+  createdAt: string
+}
+
 export interface BookingSlot {
   date: string
   time: string

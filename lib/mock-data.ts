@@ -15,6 +15,9 @@ import type {
   OnboardingInvite,
   ChatMessage,
   AvailabilitySchedule,
+  AppointmentFee,
+  AccessCode,
+  Payment,
 } from "./types"
 
 const getFutureDate = (daysFromNow: number): string => {
@@ -443,3 +446,50 @@ export const mockWeeklyAvailability = {
   saturday: [],
   sunday: [],
 }
+
+export const mockAppointmentFees: AppointmentFee[] = [
+  {
+    id: "fee_001",
+    serviceType: "consultation",
+    amount: 50,
+    currency: "USD",
+    description: "Initial Consultation (60 mins)",
+  },
+  {
+    id: "fee_002",
+    serviceType: "document_review",
+    amount: 75,
+    currency: "USD",
+    description: "Document Review Session (45 mins)",
+  },
+  {
+    id: "fee_003",
+    serviceType: "interview_prep",
+    amount: 100,
+    currency: "USD",
+    description: "Interview Preparation (90 mins)",
+  },
+  {
+    id: "fee_004",
+    serviceType: "visa_guidance",
+    amount: 60,
+    currency: "USD",
+    description: "Visa Guidance Session (60 mins)",
+  },
+]
+
+export const mockAccessCodes: AccessCode[] = [
+  {
+    id: "ac_001",
+    code: "SAMOP-FREE-2024",
+    clientEmail: "vip.client@email.com",
+    clientName: "VIP Client",
+    serviceType: "consultation",
+    isUsed: false,
+    expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    createdBy: "usr_003",
+    createdAt: new Date().toISOString(),
+  },
+]
+
+export const mockPayments: Payment[] = []

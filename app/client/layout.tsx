@@ -26,18 +26,20 @@ import {
   Settings,
   ChevronDown,
 } from "lucide-react"
-import type { ClientProfile } from "@/lib/types"
+import type { ClientProfile, User as UserType } from "@/lib/types"
 import { getClientProfile } from "@/lib/api"
 import { cn } from "@/lib/utils"
 
 interface ClientContextType {
   profile: ClientProfile | null
+  user: UserType | null
   isLoading: boolean
   refreshProfile: () => Promise<void>
 }
 
 const ClientContext = createContext<ClientContextType>({
   profile: null,
+  user: null,
   isLoading: true,
   refreshProfile: async () => {},
 })
@@ -54,8 +56,8 @@ const navItems = [
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [profile, setProfile] = useState<ClientProfile | null>(null)
+  const [user, setUser] = useState<UserType | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/client/login"
@@ -63,8 +65,8 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const refreshProfile = useCallback(async () => {
     const userStr = localStorage.getItem("samop_user")
     if (userStr) {
-      const user = JSON.parse(userStr)
-      const result = await getClientProfile(user.id)
+      const userData = JSON.parse(userStr)
+      const result = await getClientProfile(userData.id)
       if (result.success && result.data) {
         setProfile(result.data)
       }
@@ -72,11 +74,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
+    // For login page, just set loading to false
     if (isLoginPage) {
       setIsLoading(false)
       return
     }
 
+    // Check auth synchronously
     const token = localStorage.getItem("samop_token")
     const userStr = localStorage.getItem("samop_user")
 
@@ -86,17 +90,18 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     }
 
     try {
-      const user = JSON.parse(userStr)
-      if (user.role !== "client") {
+      const userData = JSON.parse(userStr) as UserType
+      if (userData.role !== "client") {
         window.location.href = "/client/login"
         return
       }
 
-      setIsAuthenticated(true)
+      // Set user immediately
+      setUser(userData)
       setIsLoading(false)
 
-      // Load profile in background - don't block UI
-      getClientProfile(user.id).then((result) => {
+      // Load profile in background
+      getClientProfile(userData.id).then((result) => {
         if (result.success && result.data) {
           setProfile(result.data)
         }
@@ -117,7 +122,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     return <>{children}</>
   }
 
-  // Show loading only briefly while checking auth
+  // Show loading only briefly
   if (isLoading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -129,24 +134,18 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     )
   }
 
-  // If not authenticated after loading, don't render anything (redirect will happen)
-  if (!isAuthenticated) {
+  // If no user after loading, return null (redirect will happen)
+  if (!user) {
     return null
   }
 
-  const userStr = localStorage.getItem("samop_user")
-  const user = userStr ? JSON.parse(userStr) : null
-  const initials = profile
-    ? `${profile.firstName[0]}${profile.lastName[0]}`.toUpperCase()
-    : user
-      ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
-      : "U"
-  const displayName = profile?.firstName || user?.firstName || "User"
+  const initials = `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+  const displayName = user.firstName
 
   return (
-    <ClientContext.Provider value={{ profile, isLoading, refreshProfile }}>
+    <ClientContext.Provider value={{ profile, user, isLoading, refreshProfile }}>
       <div className="min-h-screen bg-background">
-        {/* Header - Fixed */}
+        {/* Header */}
         <header className="sticky top-0 z-50 border-b border-border bg-card">
           <div className="flex h-16 items-center justify-between px-4 lg:px-6">
             <div className="flex items-center gap-4">
@@ -224,7 +223,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
         </header>
 
         <div className="flex">
-          {/* Desktop Sidebar - Fixed */}
+          {/* Desktop Sidebar */}
           <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 lg:pt-16 bg-sidebar border-r border-sidebar-border">
             <nav className="flex-1 p-4 space-y-2">
               {navItems.map((item) => (
