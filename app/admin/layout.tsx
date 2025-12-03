@@ -34,10 +34,9 @@ import { cn } from "@/lib/utils"
 
 interface AdminContextType {
   admin: User | null
-  isLoading: boolean
 }
 
-const AdminContext = createContext<AdminContextType>({ admin: null, isLoading: true })
+const AdminContext = createContext<AdminContextType>({ admin: null })
 
 export const useAdmin = () => useContext(AdminContext)
 
@@ -54,44 +53,43 @@ const navItems = [
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const [admin, setAdmin] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isReady, setIsReady] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/admin/login"
 
   useEffect(() => {
+    // Login page - just render it
     if (isLoginPage) {
-      setIsLoading(false)
+      setIsReady(true)
       return
     }
 
-    const checkAuth = () => {
-      const token = localStorage.getItem("samop_admin_token")
-      const userStr = localStorage.getItem("samop_admin_user")
+    // Check authentication
+    const token = localStorage.getItem("samop_admin_token")
+    const userStr = localStorage.getItem("samop_admin_user")
 
-      if (!token || !userStr) {
+    if (!token || !userStr) {
+      window.location.href = "/admin/login"
+      return
+    }
+
+    try {
+      const user = JSON.parse(userStr) as User
+
+      if (user.role !== "admin") {
+        localStorage.removeItem("samop_admin_token")
+        localStorage.removeItem("samop_admin_user")
         window.location.href = "/admin/login"
         return
       }
 
-      try {
-        const user = JSON.parse(userStr) as User
-
-        if (user.role !== "admin") {
-          localStorage.removeItem("samop_admin_token")
-          localStorage.removeItem("samop_admin_user")
-          window.location.href = "/admin/login"
-          return
-        }
-
-        setAdmin(user)
-        setIsLoading(false)
-      } catch (e) {
-        window.location.href = "/admin/login"
-      }
+      // User is valid - set state and render
+      setAdmin(user)
+      setIsReady(true)
+    } catch (e) {
+      window.location.href = "/admin/login"
     }
-
-    checkAuth()
   }, [isLoginPage])
 
   const handleLogout = () => {
@@ -100,11 +98,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     window.location.href = "/admin/login"
   }
 
+  // Login page - render directly
   if (isLoginPage) {
     return <>{children}</>
   }
 
-  if (isLoading) {
+  // Not ready yet - show loading
+  if (!isReady) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -115,6 +115,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
+  // No admin - redirect happening
   if (!admin) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -129,7 +130,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const initials = `${admin.firstName[0]}${admin.lastName[0]}`.toUpperCase()
 
   return (
-    <AdminContext.Provider value={{ admin, isLoading }}>
+    <AdminContext.Provider value={{ admin }}>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="sticky top-0 z-50 border-b border-border bg-card">

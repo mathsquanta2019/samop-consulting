@@ -8,14 +8,25 @@ import { getDashboardStats } from "@/lib/api"
 export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    getDashboardStats().then((result) => {
-      if (result.success && result.data) {
-        setStats(result.data)
+    const loadStats = async () => {
+      try {
+        const result = await getDashboardStats()
+        if (result.success && result.data) {
+          setStats(result.data)
+        } else {
+          setError(result.error || "Failed to load stats")
+        }
+      } catch (e) {
+        setError("Error loading dashboard")
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
-    })
+    }
+
+    loadStats()
   }, [])
 
   if (isLoading) {
@@ -29,10 +40,10 @@ export default function AdminDashboardPage() {
     )
   }
 
-  if (!stats) {
+  if (error || !stats) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Unable to load stats. Please try refreshing.</p>
+        <p className="text-muted-foreground">{error || "Unable to load stats. Please try refreshing."}</p>
       </div>
     )
   }

@@ -33,14 +33,12 @@ import { cn } from "@/lib/utils"
 interface ClientContextType {
   profile: ClientProfile | null
   user: UserType | null
-  isLoading: boolean
   refreshProfile: () => Promise<void>
 }
 
 const ClientContext = createContext<ClientContextType>({
   profile: null,
   user: null,
-  isLoading: true,
   refreshProfile: async () => {},
 })
 
@@ -57,7 +55,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const pathname = usePathname()
   const [profile, setProfile] = useState<ClientProfile | null>(null)
   const [user, setUser] = useState<UserType | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isReady, setIsReady] = useState(false)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
 
   const isLoginPage = pathname === "/client/login"
@@ -79,47 +77,44 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   }, [])
 
   useEffect(() => {
-    // Skip auth check for login page
+    // Login page - just render it
     if (isLoginPage) {
-      setIsLoading(false)
+      setIsReady(true)
       return
     }
 
-    // Check auth
-    const checkAuth = async () => {
-      const token = localStorage.getItem("samop_token")
-      const userStr = localStorage.getItem("samop_user")
+    // Check authentication
+    const token = localStorage.getItem("samop_token")
+    const userStr = localStorage.getItem("samop_user")
 
-      if (!token || !userStr) {
+    if (!token || !userStr) {
+      window.location.href = "/client/login"
+      return
+    }
+
+    try {
+      const userData = JSON.parse(userStr) as UserType
+
+      if (userData.role !== "client") {
+        localStorage.removeItem("samop_token")
+        localStorage.removeItem("samop_user")
         window.location.href = "/client/login"
         return
       }
 
-      try {
-        const userData = JSON.parse(userStr) as UserType
+      // User is valid - set state and render
+      setUser(userData)
+      setIsReady(true)
 
-        if (userData.role !== "client") {
-          localStorage.removeItem("samop_token")
-          localStorage.removeItem("samop_user")
-          window.location.href = "/client/login"
-          return
-        }
-
-        // Set user immediately
-        setUser(userData)
-        setIsLoading(false)
-
-        // Load profile in background
-        const result = await getClientProfile(userData.id)
+      // Load profile in background (not blocking)
+      getClientProfile(userData.id).then((result) => {
         if (result.success && result.data) {
           setProfile(result.data)
         }
-      } catch (e) {
-        window.location.href = "/client/login"
-      }
+      })
+    } catch (e) {
+      window.location.href = "/client/login"
     }
-
-    checkAuth()
   }, [isLoginPage])
 
   const handleLogout = () => {
@@ -128,13 +123,13 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     window.location.href = "/client/login"
   }
 
-  // Login page - render children directly without layout
+  // Login page - render directly
   if (isLoginPage) {
     return <>{children}</>
   }
 
-  // Loading state
-  if (isLoading) {
+  // Not ready yet - show loading
+  if (!isReady) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -145,7 +140,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
     )
   }
 
-  // No user after loading - redirect is happening
+  // No user - redirect happening
   if (!user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -161,7 +156,7 @@ export default function ClientLayout({ children }: { children: React.ReactNode }
   const displayName = user.firstName
 
   return (
-    <ClientContext.Provider value={{ profile, user, isLoading, refreshProfile }}>
+    <ClientContext.Provider value={{ profile, user, refreshProfile }}>
       <div className="min-h-screen bg-background">
         {/* Header */}
         <header className="sticky top-0 z-50 border-b border-border bg-card">

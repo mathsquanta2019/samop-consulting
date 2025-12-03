@@ -1,42 +1,42 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useClient } from "../layout"
 import { DashboardOverview } from "@/components/client/dashboard-overview"
 import { getClientProfile } from "@/lib/api"
 import type { ClientProfile } from "@/lib/types"
 
 export default function ClientDashboardPage() {
-  const { user, profile: contextProfile } = useClient()
-  const [profile, setProfile] = useState<ClientProfile | null>(contextProfile)
-  const [isLoading, setIsLoading] = useState(!contextProfile)
+  const [profile, setProfile] = useState<ClientProfile | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // If we already have the profile from context, use it
-    if (contextProfile) {
-      setProfile(contextProfile)
-      setIsLoading(false)
-      return
-    }
+    const loadProfile = async () => {
+      try {
+        const userStr = localStorage.getItem("samop_user")
+        if (!userStr) {
+          setError("No user found")
+          setIsLoading(false)
+          return
+        }
 
-    // If we have a user but no profile, fetch it
-    if (user && !profile) {
-      getClientProfile(user.id).then((result) => {
+        const user = JSON.parse(userStr)
+        const result = await getClientProfile(user.id)
+
         if (result.success && result.data) {
           setProfile(result.data)
+        } else {
+          setError(result.error || "Failed to load profile")
         }
+      } catch (e) {
+        setError("Error loading profile")
+      } finally {
         setIsLoading(false)
-      })
+      }
     }
-  }, [user, contextProfile, profile])
 
-  // Update profile when context changes
-  useEffect(() => {
-    if (contextProfile) {
-      setProfile(contextProfile)
-      setIsLoading(false)
-    }
-  }, [contextProfile])
+    loadProfile()
+  }, [])
 
   if (isLoading) {
     return (
@@ -49,10 +49,10 @@ export default function ClientDashboardPage() {
     )
   }
 
-  if (!profile) {
+  if (error || !profile) {
     return (
       <div className="text-center py-12">
-        <p className="text-muted-foreground">Unable to load profile. Please try refreshing.</p>
+        <p className="text-muted-foreground">{error || "Unable to load profile. Please try refreshing."}</p>
       </div>
     )
   }
