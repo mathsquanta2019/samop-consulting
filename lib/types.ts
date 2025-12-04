@@ -261,6 +261,28 @@ export interface BookingSlot {
   available: boolean
 }
 
+// Payment Verification Type for Bank Transfer Workflow
+export type PaymentVerificationStatus = "pending" | "verified" | "rejected"
+export type PaymentRegion = "us" | "africa" | "international"
+
+export interface PaymentVerification {
+  id: string
+  appointmentId: string
+  clientEmail: string
+  clientName: string
+  paymentMethod: "bank_transfer" | "mobile_money"
+  region: PaymentRegion
+  amount: number
+  currency: string
+  transactionId?: string
+  receiptUrl?: string
+  status: PaymentVerificationStatus
+  adminNotes?: string
+  verifiedBy?: string
+  verifiedAt?: string
+  createdAt: string
+}
+
 // ==========================================
 // APPLICATION FORM TYPES
 // ==========================================

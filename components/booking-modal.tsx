@@ -1,40 +1,40 @@
 "use client"
-import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+
+import type React from "react"
+import { useState, useEffect, useRef } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   CalendarIcon,
   ClockIcon,
-  UserIcon,
-  MailIcon,
-  PhoneIcon,
   CheckCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CreditCardIcon,
   BuildingIcon,
   SmartphoneIcon,
+  UploadIcon,
+  CopyIcon,
 } from "@/components/icons"
 import {
   getConsultationServices,
   getMonthAvailability,
   getAvailableSlots,
-  validateAccessCode,
   createAppointment,
+  submitPaymentVerification,
+  getBankDetails,
 } from "@/lib/api"
-import type { BookingSlot } from "@/lib/types"
+import type { BookingSlot, PaymentRegion } from "@/lib/types"
 
 interface BookingModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  preselectedService?: string
 }
 
 interface ConsultationService {
@@ -45,67 +45,47 @@ interface ConsultationService {
   duration: string
 }
 
-interface DayAvailability {
-  date: string
-  available: boolean
-  slotsCount?: number
-}
-
 type Step = "service" | "calendar" | "time" | "details" | "payment" | "confirm"
-type PaymentMethod = "credit_card" | "bank_transfer" | "paypal" | "mobile_money"
+type PaymentMethod = "credit_card" | "bank_transfer" | "mobile_money"
 
 const paymentMethods = [
-  {
-    id: "credit_card" as PaymentMethod,
-    name: "Credit/Debit Card",
-    description: "Visa, Mastercard, Amex",
-    icon: CreditCardIcon,
-  },
-  {
-    id: "bank_transfer" as PaymentMethod,
-    name: "Bank Transfer",
-    description: "Direct bank payment",
-    icon: BuildingIcon,
-  },
-  { id: "paypal" as PaymentMethod, name: "PayPal", description: "Pay with PayPal", icon: CreditCardIcon },
-  {
-    id: "mobile_money" as PaymentMethod,
-    name: "Mobile Money",
-    description: "M-Pesa, MTN, Airtel",
-    icon: SmartphoneIcon,
-  },
+  { id: "credit_card" as PaymentMethod, name: "Credit/Debit Card", description: "Visa, Mastercard, Amex" },
+  { id: "bank_transfer" as PaymentMethod, name: "Bank Transfer", description: "Direct bank payment" },
+  { id: "mobile_money" as PaymentMethod, name: "Mobile Money", description: "M-Pesa, MTN, Airtel" },
 ]
 
-export function BookingModal({ open, onOpenChange, preselectedService }: BookingModalProps) {
+export function BookingModal({ open, onOpenChange }: BookingModalProps) {
+  const [step, setStep] = useState<Step>("service")
+  const [services, setServices] = useState<ConsultationService[]>([])
+  const [selectedServiceId, setSelectedServiceId] = useState("")
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [availableDates, setAvailableDates] = useState<Map<string, number>>(new Map())
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [timeSlots, setTimeSlots] = useState<BookingSlot[]>([])
+  const [selectedTime, setSelectedTime] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [bookingComplete, setBookingComplete] = useState(false)
+  const [appointmentId, setAppointmentId] = useState<string | null>(null)
+
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     phone: "",
-    service: preselectedService || "",
+    notes: "",
     date: "",
     time: "",
-    notes: "",
   })
 
-  const [step, setStep] = useState<Step>("service")
-  const [currentMonth, setCurrentMonth] = useState(new Date())
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null)
-  const [services, setServices] = useState<ConsultationService[]>([])
-  const [selectedService, setSelectedService] = useState<ConsultationService | null>(null)
-  const [monthAvailability, setMonthAvailability] = useState<DayAvailability[]>([])
-  const [availableSlots, setAvailableSlots] = useState<BookingSlot[]>([])
-  const [isLoadingServices, setIsLoadingServices] = useState(false)
-  const [isLoadingMonth, setIsLoadingMonth] = useState(false)
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false)
-  const [accessCode, setAccessCode] = useState("")
-  const [accessCodeError, setAccessCodeError] = useState("")
-  const [hasValidCode, setHasValidCode] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("credit_card")
+  const [paymentRegion, setPaymentRegion] = useState<PaymentRegion>("us")
   const [cardNumber, setCardNumber] = useState("")
   const [cardExpiry, setCardExpiry] = useState("")
   const [cardCvc, setCardCvc] = useState("")
+  const [transactionId, setTransactionId] = useState("")
+  const [receiptFile, setReceiptFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const selectedService = services.find((s) => s.id === selectedServiceId)
 
   useEffect(() => {
     if (open) {
@@ -114,373 +94,267 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
   }, [open])
 
   useEffect(() => {
-    if (open && step === "calendar") {
-      loadMonthAvailability()
+    if (open && selectedServiceId) {
+      loadAvailability()
     }
-  }, [open, currentMonth, step])
+  }, [open, currentMonth, selectedServiceId])
 
   useEffect(() => {
-    if (selectedDay) {
-      loadSlots(selectedDay)
+    if (selectedDate) {
+      loadSlots()
     }
-  }, [selectedDay])
-
-  useEffect(() => {
-    if (preselectedService && services.length > 0 && !selectedService) {
-      const found = services.find((s) => s.id === preselectedService)
-      if (found) {
-        setSelectedService(found)
-        setFormData((prev) => ({ ...prev, service: found.id }))
-        setStep("calendar")
-      }
-    }
-  }, [preselectedService, services])
+  }, [selectedDate])
 
   const loadServices = async () => {
-    setIsLoadingServices(true)
     const result = await getConsultationServices()
     if (result.success && result.data) {
       setServices(result.data)
     }
-    setIsLoadingServices(false)
   }
 
-  const loadMonthAvailability = async () => {
-    setIsLoadingMonth(true)
+  const loadAvailability = async () => {
     const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth()
+    const month = currentMonth.getMonth() + 1
     const result = await getMonthAvailability(year, month)
     if (result.success && result.data) {
-      const availabilityWithCounts: DayAvailability[] = await Promise.all(
-        result.data.map(async (day: { date: string; available: boolean }) => {
-          if (day.available) {
-            const slotsResult = await getAvailableSlots(day.date)
-            return {
-              ...day,
-              slotsCount: slotsResult.success ? slotsResult.data?.length || 0 : 0,
-            }
-          }
-          return { ...day, slotsCount: 0 }
-        }),
-      )
-      setMonthAvailability(availabilityWithCounts)
+      const dateMap = new Map<string, number>()
+      result.data.forEach((item: { date: string; available: boolean; slotsCount?: number }) => {
+        if (item.available) {
+          dateMap.set(item.date, item.slotsCount || 1)
+        }
+      })
+      setAvailableDates(dateMap)
     }
-    setIsLoadingMonth(false)
   }
 
-  const loadSlots = async (date: Date) => {
-    setIsLoadingSlots(true)
-    const dateStr = date.toISOString().split("T")[0]
-    const result = await getAvailableSlots(dateStr)
+  const loadSlots = async () => {
+    if (!selectedDate) return
+    const result = await getAvailableSlots(selectedDate)
     if (result.success && result.data) {
       const slots: BookingSlot[] = result.data.map((time: string) => ({
-        date: dateStr,
+        date: selectedDate,
         time,
         available: true,
       }))
-      setAvailableSlots(slots)
+      setTimeSlots(slots)
     }
-    setIsLoadingSlots(false)
-  }
-
-  const handleServiceSelect = (serviceId: string) => {
-    const service = services.find((s) => s.id === serviceId)
-    if (service) {
-      setSelectedService(service)
-      setFormData({ ...formData, service: service.id })
-    }
-  }
-
-  const handleDayClick = (date: Date) => {
-    if (isPastDate(date)) return
-    const dateStr = date.toISOString().split("T")[0]
-    const dayAvail = monthAvailability.find((a) => a.date === dateStr)
-    if (!dayAvail?.available) return
-
-    setSelectedDay(date)
-    setFormData({ ...formData, date: dateStr, time: "" })
-    setStep("time")
-  }
-
-  const handleTimeSelect = (slot: BookingSlot) => {
-    if (!slot.available) return
-    setFormData({ ...formData, date: slot.date, time: slot.time })
-  }
-
-  const isPastDate = (date: Date): boolean => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    return date < today
-  }
-
-  const getDayAvailability = (date: Date): DayAvailability | undefined => {
-    const dateStr = date.toISOString().split("T")[0]
-    return monthAvailability.find((a) => a.date === dateStr)
-  }
-
-  const handleAccessCodeValidation = async () => {
-    if (!accessCode) {
-      setAccessCodeError("Please enter an access code")
-      return
-    }
-    const result = await validateAccessCode(accessCode)
-    if (result.success && result.data?.valid) {
-      setHasValidCode(true)
-      setAccessCodeError("")
-    } else {
-      setAccessCodeError("Invalid access code")
-    }
-  }
-
-  const handleSubmit = async () => {
-    setIsSubmitting(true)
-    const result = await createAppointment({
-      clientName: formData.name,
-      clientEmail: formData.email,
-      clientPhone: formData.phone,
-      date: formData.date,
-      time: formData.time,
-      serviceType: selectedService?.id || "consultation",
-      notes: formData.notes,
-      paymentMethod,
-    })
-
-    if (result.success) {
-      setIsSuccess(true)
-      setStep("confirm")
-    }
-    setIsSubmitting(false)
   }
 
   const handleClose = () => {
-    setStep("service")
-    setSelectedDay(null)
-    setSelectedService(null)
-    setFormData({ name: "", email: "", phone: "", service: "", date: "", time: "", notes: "" })
-    setIsSuccess(false)
-    setAccessCode("")
-    setHasValidCode(false)
-    setPaymentMethod("credit_card")
-    setCardNumber("")
-    setCardExpiry("")
-    setCardCvc("")
     onOpenChange(false)
+    // Reset state after close
+    setTimeout(() => {
+      setStep("service")
+      setSelectedServiceId("")
+      setSelectedDate(null)
+      setSelectedTime(null)
+      setBookingComplete(false)
+      setFormData({ name: "", email: "", phone: "", notes: "", date: "", time: "" })
+      setPaymentMethod("credit_card")
+      setPaymentRegion("us")
+      setCardNumber("")
+      setCardExpiry("")
+      setCardCvc("")
+      setTransactionId("")
+      setReceiptFile(null)
+    }, 300)
   }
 
-  const goToPrevMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+  const handleSubmit = async () => {
+    if (!selectedService) return
+
+    setIsSubmitting(true)
+
+    // Create appointment first
+    const appointmentResult = await createAppointment({
+      clientName: formData.name,
+      clientEmail: formData.email,
+      clientPhone: formData.phone,
+      type: "consultation",
+      date: formData.date,
+      time: formData.time,
+      notes: formData.notes,
+      duration: 60,
+    })
+
+    if (!appointmentResult.success || !appointmentResult.data) {
+      setIsSubmitting(false)
+      return
+    }
+
+    const newAppointmentId = appointmentResult.data.id
+    setAppointmentId(newAppointmentId)
+
+    // Handle payment based on method
+    if (paymentMethod === "bank_transfer" || paymentMethod === "mobile_money") {
+      // Submit payment verification request
+      await submitPaymentVerification({
+        appointmentId: newAppointmentId,
+        clientEmail: formData.email,
+        clientName: formData.name,
+        paymentMethod,
+        region: paymentRegion,
+        amount: selectedService.price,
+        currency: paymentRegion === "africa" ? "NGN" : "USD",
+        transactionId: transactionId || undefined,
+        receiptFile: receiptFile || undefined,
+      })
+    }
+
+    setIsSubmitting(false)
+    setBookingComplete(true)
+    setStep("confirm")
   }
 
-  const goToNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setReceiptFile(file)
+    }
   }
 
-  const renderStepIndicator = () => {
-    const steps = [
-      { key: "service", label: "Service" },
-      { key: "calendar", label: "Date" },
-      { key: "time", label: "Time" },
-      { key: "details", label: "Details" },
-      { key: "payment", label: "Payment" },
-    ]
-    const currentIndex = steps.findIndex((s) => s.key === step)
-
-    return (
-      <div className="flex items-center justify-center gap-2 mb-6">
-        {steps.map((s, idx) => (
-          <div key={s.key} className="flex items-center">
-            <div
-              className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
-                idx < currentIndex
-                  ? "bg-primary text-primary-foreground"
-                  : idx === currentIndex
-                    ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
-                    : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {idx < currentIndex ? <CheckCircleIcon className="h-4 w-4" /> : idx + 1}
-            </div>
-            {idx < steps.length - 1 && (
-              <div className={`w-8 h-0.5 mx-1 ${idx < currentIndex ? "bg-primary" : "bg-muted"}`} />
-            )}
-          </div>
-        ))}
-      </div>
-    )
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text)
   }
+
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear()
+    const month = date.getMonth()
+    const firstDay = new Date(year, month, 1)
+    const lastDay = new Date(year, month + 1, 0)
+    const daysInMonth = lastDay.getDate()
+    const startingDay = firstDay.getDay()
+    return { daysInMonth, startingDay }
+  }
+
+  const formatDateKey = (year: number, month: number, day: number) => {
+    return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
+  }
+
+  const { daysInMonth, startingDay } = getDaysInMonth(currentMonth)
 
   const renderCalendar = () => {
-    const year = currentMonth.getFullYear()
-    const month = currentMonth.getMonth()
-    const firstDay = new Date(year, month, 1).getDay()
-    const daysInMonth = new Date(year, month + 1, 0).getDate()
-
     const days = []
-    for (let i = 0; i < firstDay; i++) {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    for (let i = 0; i < startingDay; i++) {
       days.push(<div key={`empty-${i}`} className="h-10" />)
     }
 
     for (let day = 1; day <= daysInMonth; day++) {
-      const date = new Date(year, month, day)
-      const isPast = isPastDate(date)
-      const dayAvail = getDayAvailability(date)
-      const hasSlots = dayAvail?.available || false
-      const slotsCount = dayAvail?.slotsCount || 0
-      const isSelected = selectedDay?.toDateString() === date.toDateString()
-
-      const dayButton = (
-        <button
-          type="button"
-          onClick={() => handleDayClick(date)}
-          disabled={isPast || !hasSlots}
-          className={`h-10 w-10 rounded-lg text-sm font-medium transition-all relative ${
-            isPast ? "text-muted-foreground/40 cursor-not-allowed" : ""
-          } ${!isPast && !hasSlots ? "text-muted-foreground/60 cursor-not-allowed" : ""} ${
-            !isPast && hasSlots ? "hover:bg-primary/10 cursor-pointer" : ""
-          } ${isSelected ? "bg-primary text-primary-foreground hover:bg-primary" : ""} ${
-            !isPast && hasSlots && !isSelected ? "text-foreground" : ""
-          }`}
-        >
-          {day}
-          {!isPast && hasSlots && (
-            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full bg-green-500" />
-          )}
-        </button>
-      )
+      const dateKey = formatDateKey(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+      const dateObj = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+      const isPast = dateObj < today
+      const slotsCount = availableDates.get(dateKey) || 0
+      const isAvailable = slotsCount > 0 && !isPast
+      const isSelected = selectedDate === dateKey
 
       days.push(
-        <div key={day} className="flex items-center justify-center">
-          {!isPast && hasSlots ? (
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>{dayButton}</TooltipTrigger>
-                <TooltipContent>
-                  <p>
-                    {slotsCount} slot{slotsCount !== 1 ? "s" : ""} available
-                  </p>
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          ) : (
-            dayButton
-          )}
-        </div>,
+        <TooltipProvider key={day}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                disabled={!isAvailable}
+                onClick={() => {
+                  setSelectedDate(dateKey)
+                  setFormData((prev) => ({ ...prev, date: dateKey }))
+                }}
+                className={`h-10 w-10 rounded-full text-sm font-medium transition-all ${
+                  isSelected
+                    ? "bg-primary text-primary-foreground"
+                    : isAvailable
+                      ? "bg-green-100 text-green-700 hover:bg-green-200"
+                      : "text-muted-foreground opacity-50 cursor-not-allowed"
+                }`}
+              >
+                {day}
+              </button>
+            </TooltipTrigger>
+            {isAvailable && (
+              <TooltipContent>
+                <p>
+                  {slotsCount} slot{slotsCount > 1 ? "s" : ""} available
+                </p>
+              </TooltipContent>
+            )}
+          </Tooltip>
+        </TooltipProvider>,
       )
     }
 
-    return (
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={goToPrevMonth}>
-            <ChevronLeftIcon className="h-4 w-4" />
-          </Button>
-          <h3 className="font-semibold">
-            {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-          </h3>
-          <Button variant="ghost" size="icon" onClick={goToNextMonth}>
-            <ChevronRightIcon className="h-4 w-4" />
-          </Button>
-        </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground mb-2">
-          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-            <div key={d} className="h-8 flex items-center justify-center font-medium">
-              {d}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">{days}</div>
-        {isLoadingMonth && <p className="text-center text-sm text-muted-foreground">Loading availability...</p>}
-        <p className="text-xs text-muted-foreground text-center mt-2">
-          <span className="inline-block h-2 w-2 rounded-full bg-green-500 mr-1" />
-          Hover over green dots to see available slots
-        </p>
-      </div>
-    )
+    return days
   }
 
-  const renderTimeSlots = () => {
-    if (isLoadingSlots) {
-      return <p className="text-center py-8 text-muted-foreground">Loading available times...</p>
-    }
+  const canProceedToCalendar = !!selectedServiceId
+  const canProceedToTime = !!selectedDate
+  const canProceedToDetails = !!selectedTime
+  const canProceedToPayment = formData.name && formData.email && formData.phone
 
-    if (availableSlots.length === 0) {
-      return <p className="text-center py-8 text-muted-foreground">No available slots for this date.</p>
-    }
-
-    return (
-      <div className="space-y-4">
-        <h3 className="font-semibold">
-          Available times for{" "}
-          {selectedDay?.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
-        </h3>
-        <div className="grid grid-cols-3 gap-2">
-          {availableSlots.map((slot, idx) => (
-            <Button
-              key={idx}
-              variant={formData.time === slot.time ? "default" : "outline"}
-              className={`${!slot.available ? "opacity-50 cursor-not-allowed" : ""}`}
-              disabled={!slot.available}
-              onClick={() => handleTimeSelect(slot)}
-            >
-              <ClockIcon className="mr-2 h-4 w-4" />
-              {slot.time}
-            </Button>
-          ))}
-        </div>
-      </div>
-    )
-  }
-
-  if (isSuccess) {
-    return (
-      <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-md">
-          <div className="text-center py-8">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-6">
-              <CheckCircleIcon className="h-8 w-8 text-green-600" />
-            </div>
-            <DialogTitle className="text-2xl font-bold mb-2">Booking Confirmed!</DialogTitle>
-            <DialogDescription className="text-muted-foreground mb-6">
-              Your appointment has been scheduled for{" "}
-              <strong>
-                {formData.date} at {formData.time}
-              </strong>
-              . A confirmation email will be sent to {formData.email}.
-            </DialogDescription>
-            <Button onClick={handleClose}>Close</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-    )
-  }
+  const bankDetails = getBankDetails(paymentRegion)
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        <DialogHeader className="shrink-0">
-          <DialogTitle>Book a Consultation</DialogTitle>
-          <DialogDescription>Schedule a meeting with our expert consultants.</DialogDescription>
+      <DialogContent className="sm:max-w-[550px] max-h-[90vh] p-0 bg-card">
+        <DialogHeader className="p-6 pb-0">
+          <DialogTitle className="text-xl font-bold text-card-foreground">Book a Consultation</DialogTitle>
         </DialogHeader>
 
-        {renderStepIndicator()}
+        {/* Step indicator */}
+        <div className="px-6 py-3 border-b">
+          <div className="flex items-center justify-between text-xs">
+            {[
+              { key: "service", label: "Service" },
+              { key: "calendar", label: "Date" },
+              { key: "time", label: "Time" },
+              { key: "details", label: "Details" },
+              { key: "payment", label: "Payment" },
+            ].map((s, index) => {
+              const steps: Step[] = ["service", "calendar", "time", "details", "payment"]
+              const currentIndex = steps.indexOf(step)
+              const stepIndex = steps.indexOf(s.key as Step)
+              const isComplete = stepIndex < currentIndex || step === "confirm"
+              const isCurrent = s.key === step
 
-        <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-6 pb-4">
+              return (
+                <div key={s.key} className="flex items-center">
+                  <div
+                    className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium ${
+                      isComplete
+                        ? "bg-green-500 text-white"
+                        : isCurrent
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {isComplete ? <CheckCircleIcon className="h-4 w-4" /> : index + 1}
+                  </div>
+                  <span className={`ml-1 hidden sm:inline ${isCurrent ? "font-medium" : "text-muted-foreground"}`}>
+                    {s.label}
+                  </span>
+                  {index < 4 && <div className="w-4 sm:w-8 h-px bg-border mx-2" />}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        <ScrollArea className="flex-1 max-h-[60vh]">
+          <div className="p-6 space-y-4">
             {/* Step 1: Service Selection */}
             {step === "service" && (
               <div className="space-y-4">
-                <Label>Select a Service</Label>
-                {isLoadingServices ? (
-                  <p className="text-center py-4 text-muted-foreground">Loading services...</p>
-                ) : (
-                  <Select value={formData.service} onValueChange={handleServiceSelect}>
+                <div className="space-y-2">
+                  <Label>Select a Service</Label>
+                  <Select value={selectedServiceId} onValueChange={setSelectedServiceId}>
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder="Choose a consultation service" />
+                      <SelectValue placeholder="Choose a consultation type" />
                     </SelectTrigger>
                     <SelectContent>
                       {services.map((service) => (
                         <SelectItem key={service.id} value={service.id}>
-                          <div className="flex items-center justify-between w-full">
+                          <div className="flex justify-between items-center w-full">
                             <span>{service.name}</span>
                             <span className="text-muted-foreground ml-2">${service.price}</span>
                           </div>
@@ -488,183 +362,189 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
                       ))}
                     </SelectContent>
                   </Select>
-                )}
+                </div>
 
                 {selectedService && (
                   <div className="p-4 rounded-lg bg-muted/50 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <h4 className="font-semibold">{selectedService.name}</h4>
-                      <Badge variant="secondary">${selectedService.price}</Badge>
-                    </div>
+                    <h4 className="font-semibold">{selectedService.name}</h4>
                     <p className="text-sm text-muted-foreground">{selectedService.description}</p>
-                    <p className="text-sm">
-                      <ClockIcon className="inline h-3 w-3 mr-1" />
-                      {selectedService.duration}
-                    </p>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-1">
+                        <ClockIcon className="h-4 w-4" />
+                        {selectedService.duration}
+                      </span>
+                      <span className="font-semibold text-primary">${selectedService.price}</span>
+                    </div>
                   </div>
                 )}
 
-                <Button onClick={() => setStep("calendar")} className="w-full" disabled={!selectedService}>
+                <Button onClick={() => setStep("calendar")} className="w-full" disabled={!canProceedToCalendar}>
                   Continue to Select Date
                 </Button>
               </div>
             )}
 
-            {/* Step 2: Calendar Selection */}
+            {/* Step 2: Calendar */}
             {step === "calendar" && (
               <div className="space-y-4">
-                <Button variant="ghost" onClick={() => setStep("service")} className="mb-2">
+                <Button variant="ghost" size="sm" onClick={() => setStep("service")}>
                   <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Services
                 </Button>
 
-                {selectedService && (
-                  <div className="p-3 rounded-lg bg-muted/50 flex justify-between items-center">
-                    <span className="font-medium">{selectedService.name}</span>
-                    <Badge variant="secondary">${selectedService.price}</Badge>
-                  </div>
-                )}
+                <div className="flex items-center justify-between mb-4">
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                  >
+                    <ChevronLeftIcon className="h-4 w-4" />
+                  </Button>
+                  <h3 className="font-semibold">
+                    {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                  >
+                    <ChevronRightIcon className="h-4 w-4" />
+                  </Button>
+                </div>
 
-                {renderCalendar()}
+                <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((day) => (
+                    <div key={day} className="text-xs font-medium text-muted-foreground py-2">
+                      {day}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-1">{renderCalendar()}</div>
+
+                <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2">
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-green-100 border border-green-300" />
+                    <span>Available</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-3 h-3 rounded-full bg-primary" />
+                    <span>Selected</span>
+                  </div>
+                </div>
+
+                <Button onClick={() => setStep("time")} className="w-full" disabled={!canProceedToTime}>
+                  Continue to Select Time
+                </Button>
               </div>
             )}
 
             {/* Step 3: Time Selection */}
             {step === "time" && (
               <div className="space-y-4">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setStep("calendar")
-                    setSelectedDay(null)
-                  }}
-                  className="mb-2"
-                >
+                <Button variant="ghost" size="sm" onClick={() => setStep("calendar")}>
                   <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Calendar
                 </Button>
 
-                {selectedService && (
-                  <div className="p-3 rounded-lg bg-muted/50 flex justify-between items-center">
-                    <span className="font-medium">{selectedService.name}</span>
-                    <Badge variant="secondary">${selectedService.price}</Badge>
+                <div className="text-center p-3 bg-muted/50 rounded-lg">
+                  <CalendarIcon className="h-5 w-5 mx-auto mb-1 text-primary" />
+                  <p className="font-medium">
+                    {selectedDate &&
+                      new Date(selectedDate).toLocaleDateString("en-US", {
+                        weekday: "long",
+                        month: "long",
+                        day: "numeric",
+                      })}
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Available Time Slots</Label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {timeSlots.map((slot) => (
+                      <button
+                        key={slot.time}
+                        type="button"
+                        onClick={() => {
+                          setSelectedTime(slot.time)
+                          setFormData((prev) => ({ ...prev, time: slot.time }))
+                        }}
+                        className={`p-3 rounded-lg border text-sm font-medium transition-all ${
+                          selectedTime === slot.time
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        {slot.time}
+                      </button>
+                    ))}
                   </div>
-                )}
+                  {timeSlots.length === 0 && (
+                    <p className="text-center text-muted-foreground py-4">No available slots for this date</p>
+                  )}
+                </div>
 
-                {renderTimeSlots()}
-
-                {formData.time && (
-                  <Button onClick={() => setStep("details")} className="w-full">
-                    Continue to Details
-                  </Button>
-                )}
+                <Button onClick={() => setStep("details")} className="w-full" disabled={!canProceedToDetails}>
+                  Continue to Your Details
+                </Button>
               </div>
             )}
 
-            {/* Step 4: Details Form */}
+            {/* Step 4: Details */}
             {step === "details" && (
               <div className="space-y-4">
-                <Button variant="ghost" onClick={() => setStep("time")}>
+                <Button variant="ghost" size="sm" onClick={() => setStep("time")}>
                   <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Time Selection
                 </Button>
 
-                <div className="p-4 rounded-lg bg-muted/50 mb-4">
-                  <div className="flex items-center gap-4">
-                    <CalendarIcon className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="font-medium">{selectedService?.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formData.date} at {formData.time}
-                      </p>
-                    </div>
-                    <Badge variant="secondary" className="ml-auto">
-                      ${selectedService?.price}
-                    </Badge>
-                  </div>
+                <div className="p-3 bg-muted/50 rounded-lg text-sm">
+                  <p>
+                    <strong>{selectedService?.name}</strong> on{" "}
+                    {selectedDate && new Date(selectedDate).toLocaleDateString()} at {selectedTime}
+                  </p>
                 </div>
 
-                <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Full Name *</Label>
-                    <div className="relative">
-                      <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="name"
-                        className="pl-10"
-                        value={formData.name}
-                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                        placeholder="John Doe"
-                        required
-                      />
-                    </div>
+                    <Input
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, name: e.target.value }))}
+                      placeholder="John Doe"
+                    />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <div className="relative">
-                      <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        id="email"
-                        type="email"
-                        className="pl-10"
-                        value={formData.email}
-                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                        placeholder="john@example.com"
-                        required
-                      />
-                    </div>
+                    <Label htmlFor="email">Email Address *</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, email: e.target.value }))}
+                      placeholder="john@example.com"
+                    />
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number *</Label>
-                  <div className="relative">
-                    <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Phone Number *</Label>
                     <Input
                       id="phone"
-                      className="pl-10"
                       value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                      placeholder="+1 234 567 8901"
-                      required
+                      onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
+                      placeholder="+1 (234) 567-8900"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Additional Notes (Optional)</Label>
+                    <Textarea
+                      id="notes"
+                      value={formData.notes}
+                      onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
+                      placeholder="Tell us about your situation..."
+                      rows={3}
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Additional Notes (Optional)</Label>
-                  <Textarea
-                    id="notes"
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    placeholder="Any specific topics you'd like to discuss..."
-                    rows={3}
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="accessCode">Access Code (Optional)</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      id="accessCode"
-                      value={accessCode}
-                      onChange={(e) => setAccessCode(e.target.value)}
-                      placeholder="Enter access code for discount"
-                      disabled={hasValidCode}
-                    />
-                    {!hasValidCode ? (
-                      <Button variant="outline" onClick={handleAccessCodeValidation}>
-                        Apply
-                      </Button>
-                    ) : (
-                      <Badge className="bg-green-100 text-green-700 h-10 px-3 flex items-center">Valid</Badge>
-                    )}
-                  </div>
-                  {accessCodeError && <p className="text-sm text-red-500">{accessCodeError}</p>}
-                </div>
-
-                <Button
-                  onClick={() => setStep("payment")}
-                  className="w-full"
-                  disabled={!formData.name || !formData.email || !formData.phone}
-                >
+                <Button onClick={() => setStep("payment")} className="w-full" disabled={!canProceedToPayment}>
                   Continue to Payment
                 </Button>
               </div>
@@ -673,7 +553,7 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
             {/* Step 5: Payment */}
             {step === "payment" && (
               <div className="space-y-4">
-                <Button variant="ghost" onClick={() => setStep("details")}>
+                <Button variant="ghost" size="sm" onClick={() => setStep("details")}>
                   <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Details
                 </Button>
 
@@ -701,30 +581,50 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
                   </div>
                 </div>
 
-                <div className="space-y-3">
+                {/* Payment Method Dropdown */}
+                <div className="space-y-2">
                   <Label>Payment Method</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {paymentMethods.map((method) => (
-                      <button
-                        key={method.id}
-                        type="button"
-                        onClick={() => setPaymentMethod(method.id)}
-                        className={`p-3 rounded-lg border-2 text-left transition-all ${
-                          paymentMethod === method.id
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/50"
-                        }`}
-                      >
-                        <method.icon className="h-5 w-5 mb-2 text-primary" />
-                        <p className="font-medium text-sm">{method.name}</p>
-                        <p className="text-xs text-muted-foreground">{method.description}</p>
-                      </button>
-                    ))}
-                  </div>
+                  <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select payment method" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {paymentMethods.map((method) => (
+                        <SelectItem key={method.id} value={method.id}>
+                          <div className="flex items-center gap-2">
+                            <span>{method.name}</span>
+                            <span className="text-muted-foreground text-xs">- {method.description}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
 
+                {/* Region Selection for Bank Transfer / Mobile Money */}
+                {(paymentMethod === "bank_transfer" || paymentMethod === "mobile_money") && (
+                  <div className="space-y-2">
+                    <Label>Your Region</Label>
+                    <Select value={paymentRegion} onValueChange={(v) => setPaymentRegion(v as PaymentRegion)}>
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Select your region" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="us">United States</SelectItem>
+                        <SelectItem value="africa">Africa</SelectItem>
+                        <SelectItem value="international">International</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+
+                {/* Credit Card Form */}
                 {paymentMethod === "credit_card" && (
                   <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CreditCardIcon className="h-5 w-5 text-primary" />
+                      <span className="font-medium">Card Details</span>
+                    </div>
                     <div className="space-y-2">
                       <Label htmlFor="cardNumber">Card Number</Label>
                       <Input
@@ -757,42 +657,242 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
                   </div>
                 )}
 
+                {/* Bank Transfer Form */}
                 {paymentMethod === "bank_transfer" && (
-                  <div className="p-4 border rounded-lg bg-muted/50">
-                    <h4 className="font-semibold mb-2">Bank Transfer Details</h4>
-                    <div className="space-y-1 text-sm">
-                      <p>
-                        <span className="text-muted-foreground">Bank:</span> First National Bank
-                      </p>
-                      <p>
-                        <span className="text-muted-foreground">Account:</span> SAMOP Consulting LLC
-                      </p>
-                      <p>
-                        <span className="text-muted-foreground">Account #:</span> 1234567890
-                      </p>
-                      <p>
-                        <span className="text-muted-foreground">Routing #:</span> 021000021
-                      </p>
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <BuildingIcon className="h-5 w-5 text-primary" />
+                      <span className="font-medium">Bank Transfer Details</span>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-3">
-                      Please include your email as payment reference. Your booking will be confirmed upon payment
-                      verification.
-                    </p>
+
+                    <div className="space-y-2 text-sm bg-muted/50 p-3 rounded-lg">
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Bank Name:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{bankDetails.bankName}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => copyToClipboard(bankDetails.bankName)}
+                          >
+                            <CopyIcon className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Account Name:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{bankDetails.accountName}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => copyToClipboard(bankDetails.accountName)}
+                          >
+                            <CopyIcon className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-muted-foreground">Account #:</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium font-mono">{bankDetails.accountNumber}</span>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6"
+                            onClick={() => copyToClipboard(bankDetails.accountNumber)}
+                          >
+                            <CopyIcon className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                      {bankDetails.routingNumber && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Routing #:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium font-mono">{bankDetails.routingNumber}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => copyToClipboard(bankDetails.routingNumber)}
+                            >
+                              <CopyIcon className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {bankDetails.sortCode && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Sort Code:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium font-mono">{bankDetails.sortCode}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => copyToClipboard(bankDetails.sortCode)}
+                            >
+                              <CopyIcon className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {bankDetails.swiftCode && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">SWIFT:</span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium font-mono">{bankDetails.swiftCode}</span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => copyToClipboard(bankDetails.swiftCode)}
+                            >
+                              <CopyIcon className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">{bankDetails.instructions}</p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="transactionId">Transaction ID / Reference</Label>
+                      <Input
+                        id="transactionId"
+                        value={transactionId}
+                        onChange={(e) => setTransactionId(e.target.value)}
+                        placeholder="Enter your transaction reference"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Upload Payment Receipt (Optional)</Label>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,.pdf"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full bg-transparent"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <UploadIcon className="mr-2 h-4 w-4" />
+                        {receiptFile ? receiptFile.name : "Choose File"}
+                      </Button>
+                    </div>
                   </div>
                 )}
 
-                {paymentMethod === "mobile_money" && (
-                  <div className="p-4 border rounded-lg bg-muted/50">
-                    <h4 className="font-semibold mb-2">Mobile Money Payment</h4>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Send payment to the following number and include your email as reference:
-                    </p>
-                    <p className="font-mono text-lg">+1 234 567 8901</p>
+                {/* Mobile Money Form */}
+                {paymentMethod === "mobile_money" && paymentRegion === "africa" && (
+                  <div className="space-y-4 p-4 border rounded-lg">
+                    <div className="flex items-center gap-2 mb-2">
+                      <SmartphoneIcon className="h-5 w-5 text-primary" />
+                      <span className="font-medium">Mobile Money Details</span>
+                    </div>
+
+                    <div className="space-y-3 text-sm">
+                      {bankDetails.mobileMoney && (
+                        <>
+                          <div className="p-3 bg-muted/50 rounded-lg">
+                            <p className="font-medium text-green-600 mb-1">M-Pesa (Kenya)</p>
+                            <p className="font-mono">{bankDetails.mobileMoney.mpesa.number}</p>
+                            <p className="text-xs text-muted-foreground">{bankDetails.mobileMoney.mpesa.name}</p>
+                          </div>
+                          <div className="p-3 bg-muted/50 rounded-lg">
+                            <p className="font-medium text-yellow-600 mb-1">MTN Mobile Money (Ghana)</p>
+                            <p className="font-mono">{bankDetails.mobileMoney.mtn.number}</p>
+                            <p className="text-xs text-muted-foreground">{bankDetails.mobileMoney.mtn.name}</p>
+                          </div>
+                          <div className="p-3 bg-muted/50 rounded-lg">
+                            <p className="font-medium text-red-600 mb-1">Airtel Money (Uganda)</p>
+                            <p className="font-mono">{bankDetails.mobileMoney.airtel.number}</p>
+                            <p className="text-xs text-muted-foreground">{bankDetails.mobileMoney.airtel.name}</p>
+                          </div>
+                        </>
+                      )}
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="mobileTransactionId">Transaction ID</Label>
+                      <Input
+                        id="mobileTransactionId"
+                        value={transactionId}
+                        onChange={(e) => setTransactionId(e.target.value)}
+                        placeholder="Enter M-Pesa/MTN/Airtel transaction ID"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Upload Payment Screenshot (Optional)</Label>
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full bg-transparent"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <UploadIcon className="mr-2 h-4 w-4" />
+                        {receiptFile ? receiptFile.name : "Choose File"}
+                      </Button>
+                    </div>
                   </div>
                 )}
 
                 <Button onClick={handleSubmit} className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? "Processing..." : `Pay $${selectedService?.price} & Confirm Booking`}
+                  {isSubmitting
+                    ? "Processing..."
+                    : paymentMethod === "credit_card"
+                      ? `Pay $${selectedService?.price} & Confirm`
+                      : "Submit Booking & Payment Details"}
+                </Button>
+              </div>
+            )}
+
+            {/* Confirmation Step */}
+            {step === "confirm" && bookingComplete && (
+              <div className="text-center py-8 space-y-4">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto">
+                  <CheckCircleIcon className="h-8 w-8 text-green-600" />
+                </div>
+                <h3 className="text-xl font-bold">
+                  {paymentMethod === "credit_card" ? "Booking Confirmed!" : "Booking Submitted!"}
+                </h3>
+                <p className="text-muted-foreground">
+                  {paymentMethod === "credit_card"
+                    ? "Your consultation has been booked successfully. A confirmation email has been sent to your inbox."
+                    : "Your booking has been submitted. Once we verify your payment, you will receive a confirmation email."}
+                </p>
+                <div className="p-4 bg-muted/50 rounded-lg text-left text-sm space-y-2">
+                  <p>
+                    <strong>Service:</strong> {selectedService?.name}
+                  </p>
+                  <p>
+                    <strong>Date:</strong> {formData.date}
+                  </p>
+                  <p>
+                    <strong>Time:</strong> {formData.time}
+                  </p>
+                  <p>
+                    <strong>Reference:</strong> {appointmentId}
+                  </p>
+                </div>
+                <Button onClick={handleClose} className="w-full">
+                  Done
                 </Button>
               </div>
             )}

@@ -26,6 +26,9 @@ import type {
   ActivityLog,
   DocumentStatus,
   DocumentType,
+  PaymentVerification,
+  PaymentRegion,
+  PaymentVerificationStatus,
 } from "./types"
 
 import {
@@ -967,22 +970,141 @@ export async function initiatePayment(data: {
   return { success: true, data: payment }
 }
 
-export async function verifyPayment(reference: string): Promise<ApiResponse<Payment>> {
+// Payment Verification APIs
+const mockPaymentVerifications: PaymentVerification[] = []
+
+export async function submitPaymentVerification(data: {
+  appointmentId: string
+  clientEmail: string
+  clientName: string
+  paymentMethod: "bank_transfer" | "mobile_money"
+  region: PaymentRegion
+  amount: number
+  currency: string
+  transactionId?: string
+  receiptFile?: File
+}): Promise<ApiResponse<PaymentVerification>> {
   await delay(800)
+
+  // In production, receipt would be uploaded to cloud storage
+  const receiptUrl = data.receiptFile ? `/receipts/${Date.now()}_${data.receiptFile.name}` : undefined
+
+  const verification: PaymentVerification = {
+    id: "pv_" + Date.now(),
+    appointmentId: data.appointmentId,
+    clientEmail: data.clientEmail,
+    clientName: data.clientName,
+    paymentMethod: data.paymentMethod,
+    region: data.region,
+    amount: data.amount,
+    currency: data.currency,
+    transactionId: data.transactionId,
+    receiptUrl,
+    status: "pending",
+    createdAt: new Date().toISOString(),
+  }
+
+  mockPaymentVerifications.push(verification)
+
   return {
     success: true,
-    data: {
-      id: "pay_" + Date.now(),
-      appointmentId: "",
-      amount: 50,
-      currency: "USD",
-      provider: "stripe",
-      status: "completed",
-      reference,
-      createdAt: new Date().toISOString(),
-    },
-    message: "Payment verified!",
+    data: verification,
+    message: "Payment verification submitted. Your booking will be confirmed once payment is verified.",
   }
+}
+
+export async function getPendingPaymentVerifications(): Promise<ApiResponse<PaymentVerification[]>> {
+  await delay(400)
+  const pending = mockPaymentVerifications.filter((pv) => pv.status === "pending")
+  return { success: true, data: pending }
+}
+
+export async function getAllPaymentVerifications(): Promise<ApiResponse<PaymentVerification[]>> {
+  await delay(400)
+  return { success: true, data: mockPaymentVerifications }
+}
+
+export async function verifyPayment(
+  verificationId: string,
+  data: {
+    status: PaymentVerificationStatus
+    adminNotes?: string
+    verifiedBy: string
+  },
+): Promise<ApiResponse<PaymentVerification>> {
+  await delay(500)
+
+  const index = mockPaymentVerifications.findIndex((pv) => pv.id === verificationId)
+  if (index === -1) {
+    return { success: false, error: "Payment verification not found" }
+  }
+
+  const updated: PaymentVerification = {
+    ...mockPaymentVerifications[index],
+    status: data.status,
+    adminNotes: data.adminNotes,
+    verifiedBy: data.verifiedBy,
+    verifiedAt: new Date().toISOString(),
+  }
+
+  mockPaymentVerifications[index] = updated
+
+  // If verified, update the appointment status
+  if (data.status === "verified") {
+    const aptIndex = mockAppointments.findIndex((apt) => apt.id === updated.appointmentId)
+    if (aptIndex !== -1) {
+      mockAppointments[aptIndex] = { ...mockAppointments[aptIndex], status: "scheduled" }
+    }
+  }
+
+  return {
+    success: true,
+    data: updated,
+    message:
+      data.status === "verified"
+        ? "Payment verified! Appointment confirmed."
+        : "Payment rejected. Client will be notified.",
+  }
+}
+
+// Bank account details for different regions
+export function getBankDetails(region: PaymentRegion) {
+  const bankDetails = {
+    us: {
+      bankName: "Chase Bank",
+      accountName: "SAMOP Consulting LLC",
+      accountNumber: "123456789012",
+      routingNumber: "021000021",
+      swiftCode: "CHASUS33",
+      currency: "USD",
+      instructions: "Please include your email address as the payment reference.",
+    },
+    africa: {
+      bankName: "First Bank Nigeria",
+      accountName: "SAMOP Consulting Ltd",
+      accountNumber: "3087654321",
+      sortCode: "011151003",
+      currency: "NGN",
+      instructions: "Please include your email and phone number as the payment reference.",
+      mobileMoney: {
+        mpesa: { number: "+254712345678", name: "SAMOP Consulting" },
+        mtn: { number: "+233541234567", name: "SAMOP Consulting" },
+        airtel: { number: "+256701234567", name: "SAMOP Consulting" },
+      },
+    },
+    international: {
+      bankName: "Chase Bank",
+      accountName: "SAMOP Consulting LLC",
+      accountNumber: "123456789012",
+      routingNumber: "021000021",
+      swiftCode: "CHASUS33",
+      iban: "US12345678901234567890",
+      currency: "USD",
+      instructions: "For international transfers, please use SWIFT code and include your email as reference.",
+    },
+  }
+
+  return bankDetails[region]
 }
 
 // ==========================================
