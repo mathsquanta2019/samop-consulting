@@ -855,31 +855,33 @@ export async function getWeeklyAvailability(): Promise<ApiResponse<AvailabilityS
 export async function getMonthAvailability(
   year: number,
   month: number,
-): Promise<ApiResponse<{ date: string; available: boolean }[]>> {
+): Promise<ApiResponse<{ date: string; available: boolean; slotsAvailable: number }[]>> {
   await delay(300)
 
-  // Get the number of days in the month
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  // month is 1-indexed (January = 1), so we use month - 1 for Date constructor
+  const daysInMonth = new Date(year, month, 0).getDate()
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  const availability: { date: string; available: boolean }[] = []
+  const availability: { date: string; available: boolean; slotsAvailable: number }[] = []
 
   for (let day = 1; day <= daysInMonth; day++) {
-    const date = new Date(year, month, day)
+    const date = new Date(year, month - 1, day)
     const dateStr = date.toISOString().split("T")[0]
 
     // Check if date is in the past
     if (date < today) {
-      availability.push({ date: dateStr, available: false })
+      availability.push({ date: dateStr, available: false, slotsAvailable: 0 })
       continue
     }
 
     // Check if there are slots available for this date
     const dayAvailability = mockAvailability.find((a) => a.date === dateStr)
+    const slotsCount = dayAvailability ? dayAvailability.slots.length : 0
     availability.push({
       date: dateStr,
-      available: dayAvailability ? dayAvailability.slots.length > 0 : false,
+      available: slotsCount > 0,
+      slotsAvailable: slotsCount,
     })
   }
 

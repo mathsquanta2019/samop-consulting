@@ -113,7 +113,7 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
       const dateMap = new Map<string, number>()
       result.data.forEach((item) => {
         if (item.available) {
-          dateMap.set(item.date, item.slotsAvailable || 1)
+          dateMap.set(item.date, item.slotsAvailable)
         }
       })
       setAvailableDates(dateMap)
@@ -241,6 +241,7 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
       const slotsCount = availableDates.get(dateKey) || 0
       const isAvailable = slotsCount > 0 && !isPast
       const isSelected = selectedDate === dateKey
+      const isFilled = !isPast && slotsCount === 0 && availableDates.size > 0
 
       days.push(
         <TooltipProvider key={day}>
@@ -250,27 +251,39 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
                 type="button"
                 disabled={!isAvailable}
                 onClick={() => {
-                  setSelectedDate(dateKey)
-                  setFormData((prev) => ({ ...prev, date: dateKey }))
+                  if (isAvailable) {
+                    setSelectedDate(dateKey)
+                    setFormData((prev) => ({ ...prev, date: dateKey }))
+                  }
                 }}
                 className={`h-10 w-10 rounded-full text-sm font-medium transition-all ${
                   isSelected
-                    ? "bg-primary text-primary-foreground"
+                    ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
                     : isAvailable
-                      ? "bg-green-100 text-green-700 hover:bg-green-200"
-                      : "text-muted-foreground opacity-50 cursor-not-allowed"
+                      ? "bg-green-100 text-green-800 hover:bg-green-200 border border-green-300"
+                      : isFilled
+                        ? "bg-red-50 text-red-400 cursor-not-allowed border border-red-200"
+                        : isPast
+                          ? "text-muted-foreground/40 cursor-not-allowed"
+                          : "text-muted-foreground cursor-not-allowed"
                 }`}
               >
                 {day}
               </button>
             </TooltipTrigger>
-            {isAvailable && (
-              <TooltipContent>
+            <TooltipContent>
+              {isAvailable ? (
                 <p>
                   {slotsCount} slot{slotsCount > 1 ? "s" : ""} available
                 </p>
-              </TooltipContent>
-            )}
+              ) : isFilled ? (
+                <p>Fully booked</p>
+              ) : isPast ? (
+                <p>Past date</p>
+              ) : (
+                <p>Not available</p>
+              )}
+            </TooltipContent>
           </Tooltip>
         </TooltipProvider>,
       )
@@ -407,7 +420,7 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
 
               <div className="grid grid-cols-7 gap-1 place-items-center">{renderCalendar()}</div>
 
-              <div className="flex items-center gap-4 text-xs text-muted-foreground pt-2">
+              <div className="flex flex-wrap items-center gap-4 text-xs text-muted-foreground pt-2">
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 rounded-full bg-green-100 border border-green-300" />
                   <span>Available</span>
@@ -415,6 +428,10 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
                 <div className="flex items-center gap-1">
                   <div className="w-3 h-3 rounded-full bg-primary" />
                   <span>Selected</span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <div className="w-3 h-3 rounded-full bg-red-50 border border-red-200" />
+                  <span>Fully Booked</span>
                 </div>
               </div>
 
