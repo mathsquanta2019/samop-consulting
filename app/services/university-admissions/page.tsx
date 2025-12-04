@@ -1,9 +1,12 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckIcon, GraduationCapIcon } from "@/components/icons"
-import Link from "next/link"
+import { BookingModal } from "@/components/booking-modal"
 
 const features = [
   "Personalized university shortlisting based on your profile",
@@ -35,6 +38,12 @@ const levels = [
 ]
 
 export default function UniversityAdmissionsPage() {
+  const [showBookingModal, setShowBookingModal] = useState(false)
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
   return (
     <>
       <Header />
@@ -51,16 +60,19 @@ export default function UniversityAdmissionsPage() {
                 Australia, and Europe.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/client/login">
-                  <Button size="lg" className="w-full sm:w-auto">
-                    Get Started
-                  </Button>
-                </Link>
-                <Link href="/#contact">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto bg-transparent">
-                    Contact Us
-                  </Button>
-                </Link>
+                <Button size="lg" className="w-full sm:w-auto" onClick={() => setShowBookingModal(true)}>
+                  Book Consultation
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full sm:w-auto bg-transparent"
+                  onClick={() => {
+                    window.location.href = "/#contact"
+                  }}
+                >
+                  Contact Us
+                </Button>
               </div>
             </div>
           </div>
@@ -112,15 +124,14 @@ export default function UniversityAdmissionsPage() {
               Join thousands of students who have successfully gained admission to their dream universities with our
               guidance.
             </p>
-            <Link href="/client/login">
-              <Button size="lg" variant="secondary">
-                Apply Now
-              </Button>
-            </Link>
+            <Button size="lg" variant="secondary" onClick={() => setShowBookingModal(true)}>
+              Book Your Appointment
+            </Button>
           </div>
         </section>
       </main>
       <Footer />
+      <BookingModal open={showBookingModal} onOpenChange={setShowBookingModal} />
     </>
   )
 }

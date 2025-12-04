@@ -1,9 +1,12 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import { Header } from "@/components/header"
 import { Footer } from "@/components/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { CheckIcon, FileCheckIcon } from "@/components/icons"
-import Link from "next/link"
+import { BookingModal } from "@/components/booking-modal"
 
 const features = [
   "SEVIS I-901 fee payment processing",
@@ -35,6 +38,12 @@ const feeTypes = [
 ]
 
 export default function SevisPaymentPage() {
+  const [showBookingModal, setShowBookingModal] = useState(false)
+
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
   return (
     <>
       <Header />
@@ -51,16 +60,17 @@ export default function SevisPaymentPage() {
                 so you can focus on your journey.
               </p>
               <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
-                <Link href="/client/login">
-                  <Button size="lg" className="w-full sm:w-auto">
-                    Pay SEVIS Fee
-                  </Button>
-                </Link>
-                <Link href="/#contact">
-                  <Button size="lg" variant="outline" className="w-full sm:w-auto bg-transparent">
-                    Contact Us
-                  </Button>
-                </Link>
+                <Button size="lg" className="w-full sm:w-auto" onClick={() => setShowBookingModal(true)}>
+                  Book Consultation
+                </Button>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  className="w-full sm:w-auto bg-transparent"
+                  onClick={() => (window.location.href = "/#contact")}
+                >
+                  Contact Us
+                </Button>
               </div>
             </div>
           </div>
@@ -106,15 +116,14 @@ export default function SevisPaymentPage() {
             <p className="text-primary-foreground/80 mb-8 max-w-2xl mx-auto">
               Get your SEVIS fee paid quickly and securely. We provide confirmation within 24-48 hours.
             </p>
-            <Link href="/client/login">
-              <Button size="lg" variant="secondary">
-                Start Payment
-              </Button>
-            </Link>
+            <Button size="lg" variant="secondary" onClick={() => setShowBookingModal(true)}>
+              Book Your Appointment
+            </Button>
           </div>
         </section>
       </main>
       <Footer />
+      <BookingModal open={showBookingModal} onOpenChange={setShowBookingModal} />
     </>
   )
 }

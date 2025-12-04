@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -32,7 +32,13 @@ import type {
   ServiceType,
   DocumentType,
 } from "@/lib/types"
-import { createApplicationForm, updateApplicationForm, submitApplicationForm, getApplicationFormById } from "@/lib/api"
+import {
+  createApplicationForm,
+  updateApplicationForm,
+  submitApplicationForm,
+  getApplicationFormById,
+  uploadDocument,
+} from "@/lib/api"
 import { useClient } from "../layout"
 
 const allSteps = {
@@ -116,6 +122,9 @@ export default function ApplyPage() {
   const [showErrors, setShowErrors] = useState(false)
   const [saveSuccess, setSaveSuccess] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null)
+
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const [formData, setFormData] = useState<Partial<ApplicationFormData>>({
     serviceType: "education",
@@ -1690,47 +1699,98 @@ export default function ApplyPage() {
   )
 
   // Documents Step
-  const renderDocumentsStep = () => (
-    <div className="space-y-6">
-      <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
-        <p className="text-sm text-blue-700">
-          Upload the required documents. You can also upload them later from your applications page.
-        </p>
-      </div>
+  const renderDocumentsStep = () => {
+    const handleDocumentUpload = async (docType: DocumentType, file: File) => {
+      if (!user?.id) return
 
-      <div className="grid gap-4">
-        {formData.requiredDocuments?.map((doc, index) => (
-          <div
-            key={doc.type}
-            className={`flex items-center justify-between p-4 border rounded-lg ${
-              doc.uploaded ? "bg-green-50 border-green-200" : "bg-background"
-            }`}
-          >
-            <div className="flex items-center gap-3">
-              <FileTextIcon className={`h-5 w-5 ${doc.uploaded ? "text-green-600" : "text-muted-foreground"}`} />
-              <div>
-                <p className="font-medium">{documentTypeLabels[doc.type]}</p>
-                <p className="text-sm text-muted-foreground">{doc.required ? "Required" : "Optional"}</p>
+      setUploadingDoc(docType)
+      try {
+        const result = await uploadDocument({
+          applicationId: formData.id || "new",
+          clientId: user.id,
+          type: docType,
+          name: file.name,
+          file: file,
+        })
+
+        if (result.success) {
+          setFormData((prev) => ({
+            ...prev,
+            requiredDocuments: prev.requiredDocuments?.map((doc) =>
+              doc.type === docType ? { ...doc, uploaded: true, fileName: file.name } : doc,
+            ),
+          }))
+        }
+      } catch (error) {
+        console.error("Upload failed:", error)
+      } finally {
+        setUploadingDoc(null)
+      }
+    }
+
+    return (
+      <div className="space-y-6">
+        <div className="p-4 rounded-lg bg-blue-50 border border-blue-200">
+          <p className="text-sm text-blue-700">
+            Upload the required documents. You can also upload them later from your applications page.
+          </p>
+        </div>
+
+        <div className="grid gap-4">
+          {formData.requiredDocuments?.map((doc, index) => (
+            <div
+              key={doc.type}
+              className={`flex items-center justify-between p-4 border rounded-lg ${
+                doc.uploaded ? "bg-green-50 border-green-200" : "bg-background"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <FileTextIcon className={`h-5 w-5 ${doc.uploaded ? "text-green-600" : "text-muted-foreground"}`} />
+                <div>
+                  <p className="font-medium">{documentTypeLabels[doc.type]}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {doc.uploaded ? doc.fileName : doc.required ? "Required" : "Optional"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {doc.uploaded ? (
+                  <Badge className="bg-green-100 text-green-700">Uploaded</Badge>
+                ) : (
+                  <>
+                    <input
+                      type="file"
+                      ref={(el) => {
+                        fileInputRefs.current[doc.type] = el
+                      }}
+                      className="hidden"
+                      accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file) handleDocumentUpload(doc.type, file)
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingDoc === doc.type}
+                      onClick={() => fileInputRefs.current[doc.type]?.click()}
+                    >
+                      {uploadingDoc === doc.type ? "Uploading..." : "Upload"}
+                    </Button>
+                  </>
+                )}
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {doc.uploaded ? (
-                <Badge className="bg-green-100 text-green-700">Uploaded</Badge>
-              ) : (
-                <Button variant="outline" size="sm">
-                  Upload
-                </Button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
 
-      <p className="text-sm text-muted-foreground">
-        Note: You can complete document uploads after submitting your application.
-      </p>
-    </div>
-  )
+        <p className="text-sm text-muted-foreground">
+          Note: You can complete document uploads after submitting your application.
+        </p>
+      </div>
+    )
+  }
 
   // Review Step
   const renderReviewStep = () => (
