@@ -33,9 +33,16 @@ import {
   MailIcon,
   CalendarIcon,
   SendIcon,
+  BellIcon,
 } from "@/components/icons"
 import type { Application, ApplicationStatus, AppointmentType } from "@/lib/types"
-import { updateApplicationStatus, sendEmailToClient, adminCreateAppointment, getAvailableSlots } from "@/lib/api"
+import {
+  updateApplicationStatus,
+  sendEmailToClient,
+  adminCreateAppointment,
+  getAvailableSlots,
+  sendApplicationReminder,
+} from "@/lib/api"
 
 interface ApplicationsManagerProps {
   applications: Application[]
@@ -75,6 +82,12 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
   const [meetingNotes, setMeetingNotes] = useState("")
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
   const [meetingSuccess, setMeetingSuccess] = useState(false)
+
+  const [reminderDialogOpen, setReminderDialogOpen] = useState(false)
+  const [reminderApp, setReminderApp] = useState<Application | null>(null)
+  const [reminderMessage, setReminderMessage] = useState("")
+  const [reminderType, setReminderType] = useState<"incomplete" | "documents" | "deadline">("incomplete")
+  const [reminderSuccess, setReminderSuccess] = useState(false)
 
   const handleUpdateStatus = async () => {
     if (!selectedApp || !newStatus) return
@@ -156,6 +169,30 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
         setMeetingTime("")
         setMeetingNotes("")
         setMeetingSuccess(false)
+      }, 2000)
+    }
+    setIsSubmitting(false)
+  }
+
+  const handleSendReminder = async () => {
+    if (!reminderApp || !reminderMessage) return
+
+    setIsSubmitting(true)
+    const result = await sendApplicationReminder({
+      applicationId: reminderApp.id,
+      clientId: reminderApp.clientId,
+      clientEmail: reminderApp.clientEmail || "client@example.com",
+      message: reminderMessage,
+      reminderType,
+    })
+
+    if (result.success) {
+      setReminderSuccess(true)
+      setTimeout(() => {
+        setReminderDialogOpen(false)
+        setReminderMessage("")
+        setReminderApp(null)
+        setReminderSuccess(false)
       }, 2000)
     }
     setIsSubmitting(false)
@@ -263,59 +300,63 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
     },
     {
       id: "actions",
-      cell: ({ row }) => (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon">
-              <MoreHorizontalIcon className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem asChild>
-              <Link href={`/admin/applications/review?id=${row.original.id}`}>
-                <EyeIcon className="mr-2 h-4 w-4" />
-                Review Application
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={`/admin/clients?id=${row.original.clientId}`}>
-                <UserIcon className="mr-2 h-4 w-4" />
-                View Client
-              </Link>
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onClick={() => {
-                setSelectedApp(row.original)
-                setNewStatus(row.original.status)
-                setNotes(row.original.notes)
-              }}
-            >
-              <EditIcon className="mr-2 h-4 w-4" />
-              Update Status
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                setEmailApp(row.original)
-                setEmailSubject(`Update on your ${row.original.serviceType} application`)
-                setEmailDialogOpen(true)
-              }}
-            >
-              <MailIcon className="mr-2 h-4 w-4" />
-              Email Client
-            </DropdownMenuItem>
-            <DropdownMenuItem
-              onClick={() => {
-                setMeetingApp(row.original)
-                setMeetingDialogOpen(true)
-              }}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              Schedule Meeting
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      ),
+      cell: ({ row }) => {
+        const app = row.original
+        return (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" className="h-8 w-8 p-0">
+                <MoreHorizontalIcon className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href={`/admin/applications/review?id=${app.id}`}>
+                  <EyeIcon className="mr-2 h-4 w-4" />
+                  Review Application
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setSelectedApp(app)
+                  setNewStatus(app.status)
+                }}
+              >
+                <EditIcon className="mr-2 h-4 w-4" />
+                Update Status
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => {
+                  setEmailApp(app)
+                  setEmailDialogOpen(true)
+                }}
+              >
+                <MailIcon className="mr-2 h-4 w-4" />
+                Email Client
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setReminderApp(app)
+                  setReminderDialogOpen(true)
+                }}
+              >
+                <BellIcon className="mr-2 h-4 w-4" />
+                Send Reminder
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => {
+                  setMeetingApp(app)
+                  setMeetingDialogOpen(true)
+                }}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                Schedule Meeting
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )
+      },
     },
   ]
 
@@ -685,6 +726,73 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
                     {isSubmitting ? "Scheduling..." : "Schedule Meeting"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reminder Dialog */}
+      <Dialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
+        <DialogContent className="bg-card">
+          {reminderSuccess ? (
+            <div className="text-center py-8">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+              </div>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Reminder Sent!</DialogTitle>
+                <DialogDescription>The client has been notified about their application.</DialogDescription>
+              </DialogHeader>
+            </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Send Application Reminder</DialogTitle>
+                <DialogDescription>
+                  Send a reminder to the client about their incomplete application or pending documents.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Reminder Type</Label>
+                  <Select value={reminderType} onValueChange={(v) => setReminderType(v as typeof reminderType)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="incomplete">Incomplete Application</SelectItem>
+                      <SelectItem value="documents">Missing Documents</SelectItem>
+                      <SelectItem value="deadline">Upcoming Deadline</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Message</Label>
+                  <Textarea
+                    value={reminderMessage}
+                    onChange={(e) => setReminderMessage(e.target.value)}
+                    placeholder="Write your reminder message..."
+                    rows={4}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 bg-transparent"
+                    onClick={() => setReminderDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSendReminder}
+                    className="flex-1 bg-primary text-primary-foreground"
+                    disabled={!reminderMessage || isSubmitting}
+                  >
+                    <BellIcon className="mr-2 h-4 w-4" />
+                    {isSubmitting ? "Sending..." : "Send Reminder"}
                   </Button>
                 </div>
               </div>

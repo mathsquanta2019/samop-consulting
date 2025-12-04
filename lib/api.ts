@@ -177,6 +177,12 @@ export async function createOnboardingInvite(data: {
   return { success: true, data: invite, message: "Invitation sent successfully!" }
 }
 
+export async function getClientDocuments(clientId: string): Promise<ApiResponse<Document[]>> {
+  await delay(300)
+  const clientDocs = mockDocuments.filter((d) => d.clientId === clientId)
+  return { success: true, data: clientDocs }
+}
+
 // ==========================================
 // APPLICATION APIs
 // ==========================================
@@ -1272,4 +1278,20 @@ export async function updateNotificationPreferences(
 ): Promise<ApiResponse<null>> {
   await delay(400)
   return { success: true, message: "Notification preferences updated!" }
+}
+
+export async function sendApplicationReminder(data: {
+  applicationId: string
+  clientId: string
+  clientEmail: string
+  message: string
+  reminderType: "incomplete" | "documents" | "deadline"
+}): Promise<ApiResponse<{ sent: boolean }>> {
+  await delay(500)
+  console.log("Sending application reminder:", data)
+  return {
+    success: true,
+    data: { sent: true },
+    message: `Reminder sent to ${data.clientEmail}`,
+  }
 }

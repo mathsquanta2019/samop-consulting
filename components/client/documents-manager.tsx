@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useRef, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -29,7 +29,14 @@ import {
   EyeIcon,
 } from "@/components/icons"
 import type { ClientProfile, DocumentType, DocumentStatus, DocumentUploadQueue, Document } from "@/lib/types"
-import { uploadDocument, getDocumentQueue, downloadDocument, viewDocument, reuploadDocument } from "@/lib/api"
+import {
+  uploadDocument,
+  getDocumentQueue,
+  downloadDocument,
+  viewDocument,
+  reuploadDocument,
+  getClientDocuments,
+} from "@/lib/api"
 
 interface DocumentsManagerProps {
   profile: ClientProfile
@@ -84,15 +91,24 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const reuploadInputRef = useRef<HTMLInputElement>(null)
+  const [documents, setDocuments] = useState<Document[]>(profile.documents || [])
 
   useEffect(() => {
     loadUploadQueue()
-  }, [])
+    loadDocuments()
+  }, [profile.id])
 
   const loadUploadQueue = async () => {
     const result = await getDocumentQueue(profile.id)
     if (result.success && result.data) {
       setUploadQueue(result.data)
+    }
+  }
+
+  const loadDocuments = async () => {
+    const result = await getClientDocuments(profile.id)
+    if (result.success && result.data) {
+      setDocuments(result.data)
     }
   }
 
@@ -118,7 +134,7 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
       })
     }, 200)
 
-    await uploadDocument({
+    const result = await uploadDocument({
       applicationId: selectedApp,
       clientId: profile.id,
       type: docType,
@@ -128,6 +144,10 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
 
     clearInterval(progressInterval)
     setUploadProgress(100)
+
+    if (result.success && result.data) {
+      setDocuments((prev) => [...prev, result.data!])
+    }
 
     setTimeout(() => {
       setIsUploading(false)
@@ -166,7 +186,19 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
 
     setIsReuploading(false)
 
-    if (result.success) {
+    if (result.success && result.data) {
+      setDocuments((prev) =>
+        prev.map((doc) =>
+          doc.id === reuploadingDoc.id
+            ? {
+                ...doc,
+                status: "pending" as DocumentStatus,
+                name: reuploadFile.name,
+                uploadedAt: new Date().toISOString(),
+              }
+            : doc,
+        ),
+      )
       setReuploadDialogOpen(false)
       setReuploadingDoc(null)
       setReuploadFile(null)
@@ -186,7 +218,6 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
   const handleDownload = async (doc: Document) => {
     const result = await downloadDocument(doc.id)
     if (result.success && result.data) {
-      // Create a temporary link to trigger download
       const link = document.createElement("a")
       link.href = result.data.downloadUrl
       link.download = result.data.fileName
@@ -198,27 +229,25 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
   }
 
   const documentsByStatus = {
-    requires_update: profile.documents.filter((d) => d.status === "requires_update"),
-    pending: profile.documents.filter((d) => d.status === "pending"),
-    approved: profile.documents.filter((d) => d.status === "approved"),
-    rejected: profile.documents.filter((d) => d.status === "rejected"),
+    pending: documents.filter((d) => d.status === "pending"),
+    requires_update: documents.filter((d) => d.status === "requires_update"),
+    approved: documents.filter((d) => d.status === "approved"),
+    rejected: documents.filter((d) => d.status === "rejected"),
   }
+
+  const totalDocuments = documents.length
+  const approvedCount = documentsByStatus.approved.length
+  const pendingCount = documentsByStatus.pending.length
+  const requiresUpdateCount = documentsByStatus.requires_update.length
 
   return (
     <div className="space-y-6">
-      {/* Success Message */}
-      {successMessage && (
-        <div className="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-lg flex items-center gap-2">
-          <CheckCircleIcon className="h-5 w-5" />
-          {successMessage}
-        </div>
-      )}
-
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Documents</h1>
+          <h1 className="text-2xl font-bold text-foreground">My Documents</h1>
           <p className="text-muted-foreground">Upload and manage your application documents.</p>
         </div>
+
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button className="bg-primary text-primary-foreground">
@@ -229,7 +258,7 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
           <DialogContent className="bg-card">
             <DialogHeader>
               <DialogTitle className="text-card-foreground">Upload New Document</DialogTitle>
-              <DialogDescription>Select the application and document type, then upload your file.</DialogDescription>
+              <DialogDescription>Select a document type and upload your file.</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -266,30 +295,13 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
 
               <div className="space-y-2">
                 <Label>File</Label>
-                <div
-                  className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                  onClick={() => fileInputRef.current?.click()}
-                >
-                  <Input
-                    ref={fileInputRef}
-                    type="file"
-                    className="hidden"
-                    accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                    onChange={handleFileChange}
-                  />
-                  {selectedFile ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <FileTextIcon className="h-5 w-5 text-primary" />
-                      <span className="text-sm font-medium">{selectedFile.name}</span>
-                    </div>
-                  ) : (
-                    <>
-                      <UploadIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">Click to select or drag and drop</p>
-                      <p className="text-xs text-muted-foreground mt-1">PDF, DOC, DOCX, JPG, PNG (max 10MB)</p>
-                    </>
-                  )}
-                </div>
+                <Input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileChange}
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                />
+                {selectedFile && <p className="text-sm text-muted-foreground">Selected: {selectedFile.name}</p>}
               </div>
 
               {isUploading && (
@@ -314,302 +326,157 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
         </Dialog>
       </div>
 
-      {/* Upload Queue */}
-      {uploadQueue.length > 0 && (
-        <Card className="bg-card border-blue-200">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-base flex items-center gap-2">
-              <ClockIcon className="h-4 w-4 text-blue-600" />
-              Upload Queue
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {uploadQueue.map((item) => (
-                <div key={item.id} className="flex items-center gap-4 p-3 rounded-lg bg-blue-50">
-                  <FileTextIcon className="h-5 w-5 text-blue-600" />
-                  <div className="flex-1">
-                    <p className="text-sm font-medium">{item.fileName}</p>
-                    <p className="text-xs text-muted-foreground capitalize">
-                      {item.documentType.replace(/_/g, " ")} • {item.status}
-                    </p>
-                  </div>
-                  <div className="w-24">
-                    <Progress value={item.progress} className="h-2" />
-                  </div>
-                </div>
-              ))}
+      {/* Success Message */}
+      {successMessage && (
+        <div className="p-4 rounded-lg bg-green-100 text-green-800 flex items-center gap-2">
+          <CheckCircleIcon className="h-5 w-5" />
+          {successMessage}
+        </div>
+      )}
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <Card className="bg-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-100">
+                <FileTextIcon className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-card-foreground">{totalDocuments}</p>
+                <p className="text-sm text-muted-foreground">Total Documents</p>
+              </div>
             </div>
           </CardContent>
         </Card>
-      )}
-
-      {/* Document Stats */}
-      <div className="grid gap-4 md:grid-cols-4">
-        {Object.entries(statusConfig).map(([status, config]) => {
-          const count = profile.documents.filter((d) => d.status === status).length
-          const Icon = config.icon
-          return (
-            <Card key={status} className="bg-card">
-              <CardContent className="pt-6">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-lg ${config.bgColor}`}>
-                    <Icon className={`h-5 w-5 ${config.color}`} />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-card-foreground">{count}</p>
-                    <p className="text-sm text-muted-foreground">{config.label}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )
-        })}
+        <Card className="bg-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100">
+                <CheckCircleIcon className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-card-foreground">{approvedCount}</p>
+                <p className="text-sm text-muted-foreground">Approved</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-yellow-100">
+                <ClockIcon className="h-5 w-5 text-yellow-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-card-foreground">{pendingCount}</p>
+                <p className="text-sm text-muted-foreground">Pending Review</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-card">
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-orange-100">
+                <AlertCircleIcon className="h-5 w-5 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold text-card-foreground">{requiresUpdateCount}</p>
+                <p className="text-sm text-muted-foreground">Needs Update</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
-      {/* Documents Requiring Action */}
-      {documentsByStatus.requires_update.length > 0 && (
-        <Card className="bg-card border-orange-200">
-          <CardHeader>
-            <CardTitle className="text-card-foreground flex items-center gap-2">
-              <AlertCircleIcon className="h-5 w-5 text-orange-600" />
-              Action Required
-            </CardTitle>
-            <CardDescription>These documents need your attention</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {documentsByStatus.requires_update.map((doc) => (
-                <div key={doc.id} className="p-4 rounded-lg border-2 border-orange-200 bg-orange-50">
-                  <div className="flex items-start justify-between">
+      {/* Documents List */}
+      {documents.length === 0 ? (
+        <Card className="bg-card">
+          <CardContent className="py-12 text-center">
+            <FileTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-card-foreground mb-2">No Documents Yet</h3>
+            <p className="text-muted-foreground mb-4">
+              Upload your first document to get started with your application.
+            </p>
+            <Button onClick={() => setIsDialogOpen(true)} className="bg-primary text-primary-foreground">
+              <UploadIcon className="mr-2 h-4 w-4" />
+              Upload Document
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="space-y-4">
+          {documents.map((doc) => {
+            const config = statusConfig[doc.status]
+            const StatusIcon = config.icon
+
+            return (
+              <Card key={doc.id} className="bg-card">
+                <CardContent className="p-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex items-start gap-4">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-orange-100">
-                        <FileTextIcon className="h-6 w-6 text-orange-600" />
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${config.bgColor}`}>
+                        <StatusIcon className={`h-5 w-5 ${config.color}`} />
                       </div>
                       <div>
-                        <p className="font-medium text-card-foreground">{doc.name}</p>
+                        <h3 className="font-medium text-card-foreground">{doc.name}</h3>
                         <p className="text-sm text-muted-foreground capitalize">
-                          {doc.type.replace(/_/g, " ")} • {new Date(doc.uploadedAt).toLocaleDateString()}
+                          {doc.type.replace("_", " ")} • Uploaded {new Date(doc.uploadedAt).toLocaleDateString()}
                         </p>
-                        {doc.feedback && (
-                          <div className="mt-2 p-3 rounded-lg bg-white border border-orange-200">
-                            <div className="flex items-start gap-2">
-                              <MessageSquareIcon className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
-                              <div>
-                                <p className="text-xs font-medium text-orange-700">Admin Feedback:</p>
-                                <p className="text-sm text-orange-800">{doc.feedback}</p>
-                              </div>
-                            </div>
+                        {doc.adminNotes && (
+                          <div className="mt-2 flex items-start gap-2 text-sm">
+                            <MessageSquareIcon className="h-4 w-4 text-muted-foreground mt-0.5" />
+                            <p className="text-muted-foreground">{doc.adminNotes}</p>
                           </div>
                         )}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button
-                        size="sm"
-                        className="bg-orange-600 text-white hover:bg-orange-700"
-                        onClick={() => handleReuploadClick(doc)}
-                      >
-                        <UploadIcon className="mr-2 h-3 w-3" />
-                        Re-upload
+                      <Badge className={`${config.bgColor} ${config.color}`}>{config.label}</Badge>
+                      <Button variant="ghost" size="sm" onClick={() => handleView(doc)}>
+                        <EyeIcon className="h-4 w-4" />
                       </Button>
+                      <Button variant="ghost" size="sm" onClick={() => handleDownload(doc)}>
+                        <DownloadIcon className="h-4 w-4" />
+                      </Button>
+                      {(doc.status === "requires_update" || doc.status === "rejected") && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="bg-transparent"
+                          onClick={() => handleReuploadClick(doc)}
+                        >
+                          Re-upload
+                        </Button>
+                      )}
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+                </CardContent>
+              </Card>
+            )
+          })}
+        </div>
       )}
 
-      {/* All Documents List */}
-      <Card className="bg-card">
-        <CardHeader>
-          <CardTitle className="text-card-foreground">All Documents</CardTitle>
-          <CardDescription>View status and download your uploaded documents</CardDescription>
-        </CardHeader>
-        <CardContent>
-          {profile.documents.length === 0 ? (
-            <div className="text-center py-12">
-              <FileTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-card-foreground mb-2">No Documents</h3>
-              <p className="text-muted-foreground">Upload your first document to get started.</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {profile.documents
-                .filter((d) => d.status !== "requires_update")
-                .map((doc) => {
-                  const config = statusConfig[doc.status]
-                  const Icon = config.icon
-
-                  return (
-                    <div
-                      key={doc.id}
-                      className="flex items-center justify-between p-4 rounded-lg border border-border hover:bg-muted/50 transition-colors"
-                    >
-                      <div className="flex items-start gap-4">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted">
-                          <FileTextIcon className="h-6 w-6 text-muted-foreground" />
-                        </div>
-                        <div>
-                          <p className="font-medium text-card-foreground">{doc.name}</p>
-                          <p className="text-sm text-muted-foreground capitalize">
-                            {doc.type.replace(/_/g, " ")} • {new Date(doc.uploadedAt).toLocaleDateString()}
-                          </p>
-                          {doc.feedback && (
-                            <div className="mt-2 flex items-start gap-2 text-sm">
-                              <MessageSquareIcon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
-                              <span className="text-muted-foreground">{doc.feedback}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Badge
-                          variant="secondary"
-                          className={`${config.bgColor} ${config.color.replace("text-", "text-")}`}
-                        >
-                          <Icon className={`h-3 w-3 mr-1 ${config.color}`} />
-                          {config.label}
-                        </Badge>
-                        <div className="flex items-center gap-1">
-                          <Button variant="ghost" size="icon" title="View" onClick={() => handleView(doc)}>
-                            <EyeIcon className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" title="Download" onClick={() => handleDownload(doc)}>
-                            <DownloadIcon className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* View Document Dialog */}
-      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="bg-card max-w-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-card-foreground">Document Preview</DialogTitle>
-            <DialogDescription>{viewingDoc?.name}</DialogDescription>
-          </DialogHeader>
-          {viewingDoc && (
-            <div className="space-y-4 py-4">
-              {/* Document Preview */}
-              <div className="aspect-[4/3] bg-muted rounded-lg overflow-hidden border">
-                {viewingDoc.fileUrl ? (
-                  <img
-                    src={viewingDoc.fileUrl || "/placeholder.svg"}
-                    alt={viewingDoc.name}
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <div className="w-full h-full flex flex-col items-center justify-center">
-                    <FileTextIcon className="h-16 w-16 text-muted-foreground mb-4" />
-                    <p className="text-muted-foreground">Preview not available</p>
-                    <p className="text-sm text-muted-foreground mt-1">Click download to view the document</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Document Details */}
-              <div className="grid gap-4 md:grid-cols-2">
-                <div>
-                  <Label className="text-muted-foreground">File Name</Label>
-                  <p className="font-medium">{viewingDoc.name}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Type</Label>
-                  <p className="capitalize">{viewingDoc.type.replace(/_/g, " ")}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Upload Date</Label>
-                  <p>{new Date(viewingDoc.uploadedAt).toLocaleDateString()}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground">Status</Label>
-                  <Badge
-                    className={statusConfig[viewingDoc.status].bgColor + " " + statusConfig[viewingDoc.status].color}
-                  >
-                    {statusConfig[viewingDoc.status].label}
-                  </Badge>
-                </div>
-              </div>
-              {viewingDoc.feedback && (
-                <div>
-                  <Label className="text-muted-foreground">Admin Feedback</Label>
-                  <p className="p-3 bg-muted rounded-lg mt-1">{viewingDoc.feedback}</p>
-                </div>
-              )}
-              <div className="flex gap-2">
-                <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setViewDialogOpen(false)}>
-                  Close
-                </Button>
-                <Button
-                  className="flex-1 bg-primary text-primary-foreground"
-                  onClick={() => handleDownload(viewingDoc)}
-                >
-                  <DownloadIcon className="mr-2 h-4 w-4" />
-                  Download
-                </Button>
-              </div>
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
-      {/* Re-upload Document Dialog */}
+      {/* Re-upload Dialog */}
       <Dialog open={reuploadDialogOpen} onOpenChange={setReuploadDialogOpen}>
         <DialogContent className="bg-card">
           <DialogHeader>
             <DialogTitle className="text-card-foreground">Re-upload Document</DialogTitle>
-            <DialogDescription>Upload a new version of {reuploadingDoc?.name}</DialogDescription>
+            <DialogDescription>Upload a new version of "{reuploadingDoc?.name}".</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {reuploadingDoc?.feedback && (
-              <div className="p-3 rounded-lg bg-orange-50 border border-orange-200">
-                <div className="flex items-start gap-2">
-                  <MessageSquareIcon className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-xs font-medium text-orange-700">Admin Feedback:</p>
-                    <p className="text-sm text-orange-800">{reuploadingDoc.feedback}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             <div className="space-y-2">
               <Label>Select New File</Label>
-              <div
-                className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                onClick={() => reuploadInputRef.current?.click()}
-              >
-                <Input
-                  ref={reuploadInputRef}
-                  type="file"
-                  className="hidden"
-                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-                  onChange={handleReuploadFileChange}
-                />
-                {reuploadFile ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <FileTextIcon className="h-5 w-5 text-primary" />
-                    <span className="text-sm font-medium">{reuploadFile.name}</span>
-                  </div>
-                ) : (
-                  <>
-                    <UploadIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                    <p className="text-sm text-muted-foreground">Click to select file</p>
-                    <p className="text-xs text-muted-foreground mt-1">PDF, DOC, DOCX, JPG, PNG (max 10MB)</p>
-                  </>
-                )}
-              </div>
+              <Input
+                type="file"
+                ref={reuploadInputRef}
+                onChange={handleReuploadFileChange}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+              />
+              {reuploadFile && <p className="text-sm text-muted-foreground">Selected: {reuploadFile.name}</p>}
             </div>
-
             <div className="flex gap-2">
               <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setReuploadDialogOpen(false)}>
                 Cancel
@@ -619,9 +486,41 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
                 className="flex-1 bg-primary text-primary-foreground"
                 disabled={!reuploadFile || isReuploading}
               >
-                {isReuploading ? "Uploading..." : "Re-upload Document"}
+                {isReuploading ? "Uploading..." : "Re-upload"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="bg-card max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-card-foreground">{viewingDoc?.name}</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            {viewingDoc?.fileUrl ? (
+              <div className="rounded-lg overflow-hidden border">
+                <img src={viewingDoc.fileUrl || "/placeholder.svg"} alt={viewingDoc.name} className="w-full h-auto" />
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-64 bg-muted rounded-lg">
+                <div className="text-center">
+                  <FileTextIcon className="h-12 w-12 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-muted-foreground">Preview not available</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="mt-4 bg-transparent"
+                    onClick={() => viewingDoc && handleDownload(viewingDoc)}
+                  >
+                    <DownloadIcon className="mr-2 h-4 w-4" />
+                    Download to view
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

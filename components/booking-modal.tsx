@@ -1,209 +1,103 @@
 "use client"
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { ScrollArea } from "@/components/ui/scroll-area"
 import {
   CalendarIcon,
   ClockIcon,
+  UserIcon,
+  MailIcon,
+  PhoneIcon,
+  CheckCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  Loader2Icon,
-  CheckCircleIcon,
   CreditCardIcon,
   BuildingIcon,
   SmartphoneIcon,
 } from "@/components/icons"
 import {
   getAppointmentFees,
-  createAppointmentWithPayment,
   getMonthAvailability,
   getAvailableSlots,
   validateAccessCode,
+  createAppointment,
 } from "@/lib/api"
-import type { AppointmentFee, AvailabilitySchedule } from "@/lib/types"
-
-// Icons as inline SVGs to avoid lucide-react issues
-const Calendar = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect width="18" height="18" x="3" y="4" rx="2" ry="2" />
-    <line x1="16" x2="16" y1="2" y2="6" />
-    <line x1="8" x2="8" y1="2" y2="6" />
-    <line x1="3" x2="21" y1="10" y2="10" />
-  </svg>
-)
-
-const Clock = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="12" cy="12" r="10" />
-    <polyline points="12 6 12 12 16 14" />
-  </svg>
-)
-
-const ChevronLeft = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="m15 18-6-6 6-6" />
-  </svg>
-)
-
-const ChevronRight = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="m9 18 6-6-6-6" />
-  </svg>
-)
-
-const Loader2 = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-  </svg>
-)
-
-const CheckCircle = ({ className }: { className?: string }) => (
-  <svg
-    className={className}
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
-    <polyline points="22 4 12 14.01 9 11.01" />
-  </svg>
-)
+import type { AppointmentFee, BookingSlot } from "@/lib/types"
 
 interface BookingModalProps {
   open: boolean
-  onOpenChange: (open: boolean) => void
-  isClientPortal?: boolean
-  clientInfo?: {
-    name: string
-    email: string
-    phone: string
-  }
+  onClose: () => void
+  preselectedService?: string
 }
 
-type Step = "calendar" | "details" | "payment" | "confirmation"
+type Step = "calendar" | "time" | "details" | "payment" | "confirm"
+type PaymentMethod = "credit_card" | "bank_transfer" | "paypal" | "mobile_money"
 
-const countryCodes = [
-  { code: "+1", country: "US/CA" },
-  { code: "+44", country: "UK" },
-  { code: "+234", country: "NG" },
-  { code: "+91", country: "IN" },
-  { code: "+49", country: "DE" },
-  { code: "+33", country: "FR" },
-  { code: "+86", country: "CN" },
-  { code: "+81", country: "JP" },
+const paymentMethods = [
+  {
+    id: "credit_card" as PaymentMethod,
+    name: "Credit/Debit Card",
+    description: "Visa, Mastercard, Amex",
+    icon: CreditCardIcon,
+  },
+  {
+    id: "bank_transfer" as PaymentMethod,
+    name: "Bank Transfer",
+    description: "Direct bank payment",
+    icon: BuildingIcon,
+  },
+  { id: "paypal" as PaymentMethod, name: "PayPal", description: "Pay with PayPal", icon: CreditCardIcon },
+  {
+    id: "mobile_money" as PaymentMethod,
+    name: "Mobile Money",
+    description: "M-Pesa, MTN, Airtel",
+    icon: SmartphoneIcon,
+  },
 ]
 
-type PaymentMethod = "credit_card" | "bank_transfer" | "mobile_money"
-
-export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }: BookingModalProps) {
-  const [step, setStep] = useState<Step>("calendar")
-  const [currentMonth, setCurrentMonth] = useState(new Date())
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null)
-  const [fees, setFees] = useState<AppointmentFee[]>([])
-  const [monthAvailability, setMonthAvailability] = useState<AvailabilitySchedule[]>([])
-  const [availableSlots, setAvailableSlots] = useState<AvailabilitySchedule[]>([])
-  const [isLoadingMonth, setIsLoadingMonth] = useState(false)
-  const [isLoadingSlots, setIsLoadingSlots] = useState(false)
-  const [selectedFee, setSelectedFee] = useState<AppointmentFee | null>(null)
-  const [accessCode, setAccessCode] = useState("")
-  const [accessCodeError, setAccessCodeError] = useState("")
-  const [accessCodeValid, setAccessCodeValid] = useState(false)
-  const [isSubmitting, setIsSubmitting] = useState(false)
-
+export function BookingModal({ open, onClose, preselectedService }: BookingModalProps) {
   const [formData, setFormData] = useState({
-    clientName: clientInfo?.name || "",
-    clientEmail: clientInfo?.email || "",
-    clientPhone: clientInfo?.phone || "",
-    countryCode: "+1",
-    type: "",
+    name: "",
+    email: "",
+    phone: "",
+    service: preselectedService || "",
     date: "",
     time: "",
     notes: "",
   })
 
+  const [step, setStep] = useState<Step>("calendar")
+  const [currentMonth, setCurrentMonth] = useState(new Date())
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null)
+  const [fees, setFees] = useState<AppointmentFee[]>([])
+  const [monthAvailability, setMonthAvailability] = useState<{ date: string; available: boolean }[]>([])
+  const [availableSlots, setAvailableSlots] = useState<BookingSlot[]>([])
+  const [isLoadingMonth, setIsLoadingMonth] = useState(false)
+  const [isLoadingSlots, setIsLoadingSlots] = useState(false)
+  const [selectedFee, setSelectedFee] = useState<AppointmentFee | null>(null)
+  const [accessCode, setAccessCode] = useState("")
+  const [accessCodeError, setAccessCodeError] = useState("")
+  const [hasValidCode, setHasValidCode] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("credit_card")
+  const [cardNumber, setCardNumber] = useState("")
+  const [cardExpiry, setCardExpiry] = useState("")
+  const [cardCvc, setCardCvc] = useState("")
 
   useEffect(() => {
     if (open) {
       loadFees()
       loadMonthAvailability()
-      // Pre-fill client info if available
-      if (clientInfo) {
-        setFormData((prev) => ({
-          ...prev,
-          clientName: clientInfo.name,
-          clientEmail: clientInfo.email,
-          clientPhone: clientInfo.phone,
-        }))
-      }
     }
-  }, [open, currentMonth, clientInfo])
+  }, [open, currentMonth])
 
   useEffect(() => {
     if (selectedDay) {
@@ -211,17 +105,14 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
     }
   }, [selectedDay])
 
-  useEffect(() => {
-    if (formData.type) {
-      const fee = fees.find((f) => f.serviceType === formData.type)
-      setSelectedFee(fee || null)
-    }
-  }, [formData.type, fees])
-
   const loadFees = async () => {
     const result = await getAppointmentFees()
     if (result.success && result.data) {
       setFees(result.data)
+      if (!selectedFee && result.data.length > 0) {
+        setSelectedFee(result.data[0])
+        setFormData((prev) => ({ ...prev, service: result.data[0].serviceType }))
+      }
     }
   }
 
@@ -229,9 +120,7 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
     setIsLoadingMonth(true)
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth()
-    const startDate = new Date(year, month, 1).toISOString().split("T")[0]
-    const endDate = new Date(year, month + 1, 0).toISOString().split("T")[0]
-    const result = await getMonthAvailability(startDate, endDate)
+    const result = await getMonthAvailability(year, month)
     if (result.success && result.data) {
       setMonthAvailability(result.data)
     }
@@ -244,40 +133,21 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
     const result = await getAvailableSlots(dateStr)
     if (result.success && result.data) {
       setAvailableSlots(result.data)
-    } else {
-      setAvailableSlots([])
     }
     setIsLoadingSlots(false)
   }
 
-  const handleClose = () => {
-    onOpenChange(false)
-    setTimeout(() => {
-      setStep("calendar")
-      setSelectedDay(null)
-      setAccessCode("")
-      setAccessCodeError("")
-      setAccessCodeValid(false)
-      setFormData({
-        clientName: clientInfo?.name || "",
-        clientEmail: clientInfo?.email || "",
-        clientPhone: clientInfo?.phone || "",
-        countryCode: "+1",
-        type: "",
-        date: "",
-        time: "",
-        notes: "",
-      })
-    }, 300)
-  }
-
   const handleDayClick = (date: Date) => {
     if (isPastDate(date)) return
+    const dateStr = date.toISOString().split("T")[0]
+    const dayAvail = monthAvailability.find((a) => a.date === dateStr)
+    if (!dayAvail?.available) return
+
     setSelectedDay(date)
-    setFormData({ ...formData, date: date.toISOString().split("T")[0], time: "" })
+    setFormData({ ...formData, date: dateStr, time: "" })
   }
 
-  const handleTimeSelect = (slot: AvailabilitySchedule) => {
+  const handleTimeSelect = (slot: BookingSlot) => {
     if (!slot.available) return
     setFormData({ ...formData, date: slot.date, time: slot.time })
   }
@@ -288,24 +158,10 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
     return date < today
   }
 
-  const getAvailableSlotsCount = (date: Date): number => {
-    const dateStr = date.toISOString().split("T")[0]
-    const availability = monthAvailability.find((a) => a.date === dateStr)
-    if (!availability) return 0
-    let count = 0
-    availability.slots.forEach((slot) => {
-      const [startH, startM] = slot.start.split(":").map(Number)
-      const [endH, endM] = slot.end.split(":").map(Number)
-      const startMins = startH * 60 + startM
-      const endMins = endH * 60 + endM
-      count += Math.floor((endMins - startMins) / 30)
-    })
-    return count
-  }
-
   const hasAvailability = (date: Date): boolean => {
     const dateStr = date.toISOString().split("T")[0]
-    return monthAvailability.some((a) => a.date === dateStr)
+    const dayAvail = monthAvailability.find((a) => a.date === dateStr)
+    return dayAvail?.available || false
   }
 
   const canProceedToDetails = formData.date && formData.time
@@ -316,42 +172,50 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
       return
     }
     const result = await validateAccessCode(accessCode)
-    if (result.success) {
-      setAccessCodeValid(true)
+    if (result.success && result.data?.valid) {
+      setHasValidCode(true)
       setAccessCodeError("")
     } else {
-      setAccessCodeError(result.error || "Invalid access code")
-      setAccessCodeValid(false)
+      setAccessCodeError("Invalid access code")
     }
   }
 
   const handleSubmit = async () => {
     setIsSubmitting(true)
-    const result = await createAppointmentWithPayment({
-      name: formData.clientName,
-      email: formData.clientEmail,
-      phone: `${formData.countryCode} ${formData.clientPhone}`,
-      serviceType: formData.type,
+    const result = await createAppointment({
+      clientName: formData.name,
+      clientEmail: formData.email,
+      clientPhone: formData.phone,
       date: formData.date,
       time: formData.time,
+      serviceType: selectedFee?.serviceType || "consultation",
       notes: formData.notes,
-      paymentMethod: paymentMethod,
-      accessCode: accessCodeValid ? accessCode : undefined,
+      paymentMethod,
     })
 
     if (result.success) {
-      setStep("confirmation")
+      setIsSuccess(true)
     }
     setIsSubmitting(false)
   }
 
-  const formatDateLong = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("en-US", {
-      weekday: "long",
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    })
+  const handleClose = () => {
+    setStep("calendar")
+    setSelectedDay(null)
+    setFormData({ name: "", email: "", phone: "", service: "", date: "", time: "", notes: "" })
+    setIsSuccess(false)
+    setAccessCode("")
+    setHasValidCode(false)
+    setPaymentMethod("credit_card")
+    onClose()
+  }
+
+  const goToPrevMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+  }
+
+  const goToNextMonth = () => {
+    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
   }
 
   // Calendar rendering
@@ -370,7 +234,6 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
       const date = new Date(year, month, day)
       const isPast = isPastDate(date)
       const hasSlots = hasAvailability(date)
-      const slotsCount = getAvailableSlotsCount(date)
       const isSelected = selectedDay?.toDateString() === date.toDateString()
 
       days.push(
@@ -380,374 +243,425 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
             onClick={() => handleDayClick(date)}
             disabled={isPast || !hasSlots}
             className={`h-10 w-10 rounded-lg text-sm font-medium transition-all ${
-              isPast && "text-muted-foreground/40 cursor-not-allowed"
-            } ${!isPast && !hasSlots && "text-muted-foreground/60 cursor-not-allowed"} ${
-              !isPast && hasSlots && "hover:bg-primary/10 cursor-pointer"
-            } ${isSelected && "bg-primary text-primary-foreground hover:bg-primary"} ${
-              !isPast && hasSlots && !isSelected && "text-foreground"
+              isPast ? "text-muted-foreground/40 cursor-not-allowed" : ""
+            } ${!isPast && !hasSlots ? "text-muted-foreground/60 cursor-not-allowed" : ""} ${
+              !isPast && hasSlots ? "hover:bg-primary/10 cursor-pointer" : ""
+            } ${isSelected ? "bg-primary text-primary-foreground hover:bg-primary" : ""} ${
+              !isPast && hasSlots && !isSelected ? "text-foreground" : ""
             }`}
           >
             {day}
           </button>
           {!isPast && hasSlots && (
-            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-green-500"></div>
-          )}
-          {!isPast && hasSlots && (
-            <div className="absolute top-0 left-1/2 -translate-x-1/2 text-xs text-green-500">{slotsCount} slots</div>
+            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full bg-green-500"></div>
           )}
         </div>,
       )
     }
 
-    return days
+    return (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Button variant="ghost" size="icon" onClick={goToPrevMonth}>
+            <ChevronLeftIcon className="h-4 w-4" />
+          </Button>
+          <h3 className="font-semibold">
+            {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+          </h3>
+          <Button variant="ghost" size="icon" onClick={goToNextMonth}>
+            <ChevronRightIcon className="h-4 w-4" />
+          </Button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground mb-2">
+          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+            <div key={d} className="h-8 flex items-center justify-center font-medium">
+              {d}
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">{days}</div>
+        {isLoadingMonth && <p className="text-center text-sm text-muted-foreground">Loading availability...</p>}
+        <p className="text-xs text-muted-foreground text-center mt-2">
+          <span className="inline-block h-2 w-2 rounded-full bg-green-500 mr-1"></span>
+          Green dots indicate available dates
+        </p>
+      </div>
+    )
+  }
+
+  const renderTimeSlots = () => {
+    if (isLoadingSlots) {
+      return <p className="text-center py-8 text-muted-foreground">Loading available times...</p>
+    }
+
+    if (availableSlots.length === 0) {
+      return <p className="text-center py-8 text-muted-foreground">No available slots for this date.</p>
+    }
+
+    return (
+      <div className="space-y-4">
+        <h3 className="font-semibold">
+          Available times for{" "}
+          {selectedDay?.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+        </h3>
+        <div className="grid grid-cols-3 gap-2">
+          {availableSlots.map((slot, idx) => (
+            <Button
+              key={idx}
+              variant={formData.time === slot.time ? "default" : "outline"}
+              className={`${formData.time === slot.time ? "bg-primary text-primary-foreground" : "bg-transparent"} ${
+                !slot.available ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+              disabled={!slot.available}
+              onClick={() => handleTimeSelect(slot)}
+            >
+              <ClockIcon className="mr-2 h-4 w-4" />
+              {slot.time}
+            </Button>
+          ))}
+        </div>
+        <Button variant="ghost" onClick={() => setSelectedDay(null)} className="mt-4">
+          <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Calendar
+        </Button>
+      </div>
+    )
+  }
+
+  if (isSuccess) {
+    return (
+      <Dialog open={open} onOpenChange={handleClose}>
+        <DialogContent className="bg-card max-w-md">
+          <div className="text-center py-8">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-6">
+              <CheckCircleIcon className="h-8 w-8 text-green-600" />
+            </div>
+            <DialogTitle className="text-2xl font-bold text-card-foreground mb-2">Booking Confirmed!</DialogTitle>
+            <DialogDescription className="text-muted-foreground mb-6">
+              Your appointment has been scheduled for{" "}
+              <strong>
+                {formData.date} at {formData.time}
+              </strong>
+              . A confirmation email will be sent to {formData.email}.
+            </DialogDescription>
+            <Button onClick={handleClose} className="bg-primary text-primary-foreground">
+              Close
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    )
   }
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="bg-card max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-xl">
-            {step === "calendar" && "Book an Appointment"}
-            {step === "details" && "Your Details"}
-            {step === "payment" && "Payment"}
-            {step === "confirmation" && "Booking Confirmed!"}
-          </DialogTitle>
+      <DialogContent className="bg-card max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="shrink-0">
+          <DialogTitle className="text-card-foreground">Book a Consultation</DialogTitle>
+          <DialogDescription>Schedule a meeting with our expert consultants.</DialogDescription>
         </DialogHeader>
 
-        {step === "calendar" && (
-          <div className="grid md:grid-cols-2 gap-6">
-            {/* Calendar */}
-            <div className="border rounded-xl p-4">
-              <div className="flex items-center justify-between mb-4">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                >
-                  <ChevronLeftIcon className="h-4 w-4" />
-                </Button>
-                <h3 className="font-semibold">
-                  {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                </h3>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                >
-                  <ChevronRightIcon className="h-4 w-4" />
-                </Button>
-              </div>
-
-              <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground mb-2">
-                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                  <div key={d} className="h-8 flex items-center justify-center font-medium">
-                    {d}
-                  </div>
+        <ScrollArea className="flex-1 pr-4">
+          <div className="space-y-6 py-4">
+            {/* Service Selection */}
+            <div className="space-y-3">
+              <Label>Select Service</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {fees.map((fee) => (
+                  <Card
+                    key={fee.id}
+                    className={`cursor-pointer transition-all ${
+                      selectedFee?.id === fee.id ? "ring-2 ring-primary bg-primary/5" : "hover:bg-muted/50"
+                    }`}
+                    onClick={() => {
+                      setSelectedFee(fee)
+                      setFormData({ ...formData, service: fee.serviceType })
+                    }}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <p className="font-medium text-card-foreground capitalize">
+                            {fee.serviceType.replace("_", " ")}
+                          </p>
+                          <p className="text-sm text-muted-foreground">{fee.description}</p>
+                        </div>
+                        <Badge variant="secondary">${fee.amount}</Badge>
+                      </div>
+                    </CardContent>
+                  </Card>
                 ))}
               </div>
-
-              {isLoadingMonth ? (
-                <div className="flex items-center justify-center py-12">
-                  <Loader2Icon className="h-6 w-6 animate-spin text-primary" />
-                </div>
-              ) : (
-                <div className="grid grid-cols-7 gap-1">{renderCalendar()}</div>
-              )}
             </div>
 
-            {/* Time Slots */}
-            <div className="border rounded-xl p-4">
-              <div className="flex items-center gap-2 mb-3">
-                <ClockIcon className="h-4 w-4 text-muted-foreground" />
-                <h3 className="font-semibold text-sm">
-                  {selectedDay
-                    ? selectedDay.toLocaleDateString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : "Available Times"}
-                </h3>
+            {/* Calendar or Time Selection */}
+            {step === "calendar" && (
+              <div className="space-y-4">
+                <Label>Select Date & Time</Label>
+                {!selectedDay ? renderCalendar() : renderTimeSlots()}
               </div>
+            )}
 
-              {!selectedDay ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <CalendarIcon className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                  <p className="text-muted-foreground text-sm">Select a date to view times</p>
-                </div>
-              ) : isLoadingSlots ? (
-                <div className="flex flex-col items-center justify-center py-10">
-                  <Loader2Icon className="h-6 w-6 animate-spin text-primary" />
-                  <p className="mt-3 text-muted-foreground text-sm">Loading...</p>
-                </div>
-              ) : availableSlots.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-10 text-center">
-                  <p className="text-muted-foreground text-sm">No slots available</p>
-                </div>
-              ) : (
-                <>
-                  <div className="grid grid-cols-3 gap-2 max-h-[200px] overflow-y-auto pr-1">
-                    {availableSlots.map((slot) => {
-                      const isSelected = formData.date === slot.date && formData.time === slot.time
-                      return (
-                        <Button
-                          key={`${slot.date}-${slot.time}`}
-                          variant={isSelected ? "default" : "outline"}
-                          size="sm"
-                          className={`h-9 text-xs ${!slot.available && "opacity-40 cursor-not-allowed line-through"}`}
-                          disabled={!slot.available}
-                          onClick={() => handleTimeSelect(slot)}
-                        >
-                          {slot.time}
-                        </Button>
-                      )
-                    })}
+            {/* Proceed to Details */}
+            {canProceedToDetails && step === "calendar" && (
+              <Button onClick={() => setStep("details")} className="w-full bg-primary text-primary-foreground">
+                Continue to Details
+              </Button>
+            )}
+
+            {/* Details Form */}
+            {step === "details" && (
+              <div className="space-y-4">
+                <Button variant="ghost" onClick={() => setStep("calendar")}>
+                  <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Calendar
+                </Button>
+
+                <div className="p-4 rounded-lg bg-muted/50 mb-4">
+                  <div className="flex items-center gap-4">
+                    <CalendarIcon className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="font-medium">{formData.date}</p>
+                      <p className="text-sm text-muted-foreground">at {formData.time}</p>
+                    </div>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-3 text-center">
-                    All times in Central Standard Time (CST)
-                  </p>
-                </>
-              )}
-            </div>
-          </div>
-        )}
+                </div>
 
-        {step === "calendar" && canProceedToDetails && (
-          <div className="mt-5 pt-5 border-t flex justify-end">
-            <Button onClick={() => setStep("details")}>
-              Continue
-              <ChevronRightIcon className="ml-1 h-4 w-4" />
-            </Button>
-          </div>
-        )}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name *</Label>
+                    <div className="relative">
+                      <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="name"
+                        className="pl-10"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="John Doe"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email *</Label>
+                    <div className="relative">
+                      <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        id="email"
+                        type="email"
+                        className="pl-10"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        placeholder="john@example.com"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
 
-        {step === "details" && (
-          <div className="space-y-5">
-            <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg text-sm">
-              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
-              <span>{formatDateLong(formData.date)}</span>
-              <span className="text-muted-foreground">at</span>
-              <span className="font-medium">{formData.time}</span>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone Number *</Label>
+                  <div className="relative">
+                    <PhoneIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="phone"
+                      className="pl-10"
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      placeholder="+1 234 567 8901"
+                      required
+                    />
+                  </div>
+                </div>
 
-            <div className="grid gap-4">
-              <div className="space-y-2">
-                <Label>Full Name *</Label>
-                <Input
-                  value={formData.clientName}
-                  onChange={(e) => setFormData({ ...formData, clientName: e.target.value })}
-                  placeholder="John Doe"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Email *</Label>
-                <Input
-                  type="email"
-                  value={formData.clientEmail}
-                  onChange={(e) => setFormData({ ...formData, clientEmail: e.target.value })}
-                  placeholder="john@example.com"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Phone Number *</Label>
-                <div className="flex gap-2">
-                  <Select
-                    value={formData.countryCode}
-                    onValueChange={(v) => setFormData({ ...formData, countryCode: v })}
-                  >
-                    <SelectTrigger className="w-28">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {countryCodes.map((c) => (
-                        <SelectItem key={c.code} value={c.code}>
-                          {c.code} ({c.country})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    value={formData.clientPhone}
-                    onChange={(e) => setFormData({ ...formData, clientPhone: e.target.value })}
-                    placeholder="123 456 7890"
-                    className="flex-1"
+                <div className="space-y-2">
+                  <Label htmlFor="notes">Additional Notes (Optional)</Label>
+                  <Textarea
+                    id="notes"
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    placeholder="Any specific topics you'd like to discuss..."
+                    rows={3}
                   />
                 </div>
-              </div>
 
-              <div className="space-y-2">
-                <Label>Service Type *</Label>
-                <Select value={formData.type} onValueChange={(v) => setFormData({ ...formData, type: v })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select service" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {fees.map((fee) => (
-                      <SelectItem key={fee.id} value={fee.serviceType}>
-                        {fee.description} - ${fee.amount}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="accessCode">Access Code (Optional)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="accessCode"
+                      value={accessCode}
+                      onChange={(e) => setAccessCode(e.target.value)}
+                      placeholder="Enter access code for discount"
+                      disabled={hasValidCode}
+                    />
+                    {!hasValidCode ? (
+                      <Button variant="outline" className="bg-transparent" onClick={handleAccessCodeValidation}>
+                        Apply
+                      </Button>
+                    ) : (
+                      <Badge className="bg-green-100 text-green-700 h-10 px-3 flex items-center">Valid</Badge>
+                    )}
+                  </div>
+                  {accessCodeError && <p className="text-sm text-red-500">{accessCodeError}</p>}
+                </div>
 
-              <div className="space-y-2">
-                <Label>Notes (optional)</Label>
-                <Textarea
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  placeholder="Anything you'd like us to know..."
-                  rows={3}
-                />
-              </div>
-            </div>
-
-            <div className="flex gap-3 pt-4 border-t">
-              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setStep("calendar")}>
-                <ChevronLeftIcon className="mr-1 h-4 w-4" />
-                Back
-              </Button>
-              <Button
-                className="flex-1"
-                disabled={!formData.clientName || !formData.clientEmail || !formData.clientPhone || !formData.type}
-                onClick={() => setStep("payment")}
-              >
-                Continue to Payment
-                <ChevronRightIcon className="ml-1 h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {step === "payment" && (
-          <div className="space-y-5">
-            <div className="p-4 bg-muted/50 rounded-lg">
-              <h4 className="font-semibold mb-3">Booking Summary</h4>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Date:</span>
-                  <span>{formatDateLong(formData.date)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Time:</span>
-                  <span>{formData.time}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Service:</span>
-                  <span>{selectedFee?.description}</span>
-                </div>
-                <div className="flex justify-between font-semibold pt-2 border-t">
-                  <span>Total:</span>
-                  <span>${selectedFee?.amount || 0}</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <Label className="text-base font-semibold">Select Payment Method</Label>
-              <RadioGroup
-                value={paymentMethod}
-                onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
-                className="grid gap-3"
-              >
-                <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
-                  <RadioGroupItem value="credit_card" id="credit_card" />
-                  <Label htmlFor="credit_card" className="flex items-center gap-3 cursor-pointer flex-1">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <CreditCardIcon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Credit/Debit Card</p>
-                      <p className="text-sm text-muted-foreground">Visa, Mastercard, American Express</p>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
-                  <RadioGroupItem value="bank_transfer" id="bank_transfer" />
-                  <Label htmlFor="bank_transfer" className="flex items-center gap-3 cursor-pointer flex-1">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <BuildingIcon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Bank Transfer</p>
-                      <p className="text-sm text-muted-foreground">Direct bank transfer (1-3 business days)</p>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
-                  <RadioGroupItem value="mobile_money" id="mobile_money" />
-                  <Label htmlFor="mobile_money" className="flex items-center gap-3 cursor-pointer flex-1">
-                    <div className="p-2 bg-primary/10 rounded-lg">
-                      <SmartphoneIcon className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-medium">Mobile Money</p>
-                      <p className="text-sm text-muted-foreground">M-Pesa, MTN Mobile Money, Airtel Money</p>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
-            </div>
-
-            <div className="space-y-3">
-              <Label>Have an access code?</Label>
-              <div className="flex gap-2">
-                <Input
-                  value={accessCode}
-                  onChange={(e) => {
-                    setAccessCode(e.target.value)
-                    setAccessCodeError("")
-                    setAccessCodeValid(false)
-                  }}
-                  placeholder="Enter access code"
-                  className="flex-1"
-                />
-                <Button variant="outline" onClick={handleAccessCodeValidation}>
-                  Apply
+                <Button
+                  onClick={() => setStep("payment")}
+                  className="w-full bg-primary text-primary-foreground"
+                  disabled={!formData.name || !formData.email || !formData.phone}
+                >
+                  Continue to Payment
                 </Button>
               </div>
-              {accessCodeError && <p className="text-sm text-red-500">{accessCodeError}</p>}
-              {accessCodeValid && <p className="text-sm text-green-600">Access code applied! Payment waived.</p>}
-            </div>
+            )}
 
-            <div className="flex gap-3 pt-4 border-t">
-              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setStep("details")}>
-                <ChevronLeftIcon className="mr-1 h-4 w-4" />
-                Back
-              </Button>
-              <Button className="flex-1" onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting ? (
-                  <>
-                    <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : accessCodeValid ? (
-                  "Confirm Booking"
-                ) : (
-                  `Pay $${selectedFee?.amount || 0}`
+            {/* Payment Step */}
+            {step === "payment" && (
+              <div className="space-y-4">
+                <Button variant="ghost" onClick={() => setStep("details")}>
+                  <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Details
+                </Button>
+
+                {/* Summary */}
+                <div className="p-4 rounded-lg bg-muted/50">
+                  <h4 className="font-semibold mb-3">Booking Summary</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Service</span>
+                      <span className="capitalize">{selectedFee?.serviceType.replace("_", " ")}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Date & Time</span>
+                      <span>
+                        {formData.date} at {formData.time}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Name</span>
+                      <span>{formData.name}</span>
+                    </div>
+                    <div className="border-t pt-2 mt-2">
+                      <div className="flex justify-between font-semibold">
+                        <span>Total</span>
+                        <span>
+                          ${selectedFee?.amount || 0} {selectedFee?.currency || "USD"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Methods */}
+                <div className="space-y-3">
+                  <Label>Payment Method</Label>
+                  <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
+                    <div className="grid grid-cols-2 gap-3">
+                      {paymentMethods.map((method) => {
+                        const Icon = method.icon
+                        return (
+                          <label
+                            key={method.id}
+                            className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all ${
+                              paymentMethod === method.id
+                                ? "ring-2 ring-primary bg-primary/5 border-primary"
+                                : "hover:bg-muted/50"
+                            }`}
+                          >
+                            <RadioGroupItem value={method.id} className="sr-only" />
+                            <Icon className="h-5 w-5 text-muted-foreground" />
+                            <div>
+                              <p className="font-medium text-sm">{method.name}</p>
+                              <p className="text-xs text-muted-foreground">{method.description}</p>
+                            </div>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  </RadioGroup>
+                </div>
+
+                {/* Credit Card Form */}
+                {paymentMethod === "credit_card" && (
+                  <div className="space-y-4 p-4 rounded-lg border">
+                    <div className="space-y-2">
+                      <Label>Card Number</Label>
+                      <Input
+                        placeholder="4242 4242 4242 4242"
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value)}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Expiry</Label>
+                        <Input placeholder="MM/YY" value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>CVC</Label>
+                        <Input placeholder="123" value={cardCvc} onChange={(e) => setCardCvc(e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
                 )}
-              </Button>
-            </div>
-          </div>
-        )}
 
-        {step === "confirmation" && (
-          <div className="text-center py-8">
-            <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-              <CheckCircleIcon className="h-8 w-8 text-green-600" />
-            </div>
-            <h3 className="text-xl font-semibold mb-2">Booking Confirmed!</h3>
-            <p className="text-muted-foreground mb-6">
-              Your appointment has been scheduled for {formatDateLong(formData.date)} at {formData.time}.
-            </p>
-            <p className="text-sm text-muted-foreground mb-6">
-              A confirmation email has been sent to {formData.clientEmail}.
-            </p>
-            <Button onClick={handleClose}>Close</Button>
+                {/* Bank Transfer Info */}
+                {paymentMethod === "bank_transfer" && (
+                  <div className="p-4 rounded-lg border bg-muted/30">
+                    <h4 className="font-medium mb-2">Bank Transfer Details</h4>
+                    <div className="text-sm space-y-1 text-muted-foreground">
+                      <p>
+                        <strong>Bank:</strong> First National Bank
+                      </p>
+                      <p>
+                        <strong>Account Name:</strong> SAMOP Consulting LLC
+                      </p>
+                      <p>
+                        <strong>Account Number:</strong> 1234567890
+                      </p>
+                      <p>
+                        <strong>Routing Number:</strong> 021000021
+                      </p>
+                      <p className="text-xs mt-2">
+                        Please include your name as reference. Booking will be confirmed upon payment verification.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* PayPal */}
+                {paymentMethod === "paypal" && (
+                  <div className="p-4 rounded-lg border bg-muted/30 text-center">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      You will be redirected to PayPal to complete your payment.
+                    </p>
+                    <Badge variant="secondary">PayPal Checkout</Badge>
+                  </div>
+                )}
+
+                {/* Mobile Money */}
+                {paymentMethod === "mobile_money" && (
+                  <div className="space-y-4 p-4 rounded-lg border">
+                    <div className="space-y-2">
+                      <Label>Mobile Money Provider</Label>
+                      <Input placeholder="e.g., M-Pesa, MTN Mobile Money" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone Number</Label>
+                      <Input placeholder="+254 7XX XXX XXX" />
+                    </div>
+                  </div>
+                )}
+
+                <Button
+                  onClick={handleSubmit}
+                  className="w-full bg-primary text-primary-foreground"
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? "Processing..." : `Pay $${selectedFee?.amount || 0} & Confirm Booking`}
+                </Button>
+              </div>
+            )}
           </div>
-        )}
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   )
