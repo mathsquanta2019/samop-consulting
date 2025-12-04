@@ -33,7 +33,7 @@ import type { AppointmentFee, BookingSlot } from "@/lib/types"
 
 interface BookingModalProps {
   open: boolean
-  onClose: () => void
+  onOpenChange: (open: boolean) => void
   preselectedService?: string
 }
 
@@ -62,7 +62,7 @@ const paymentMethods = [
   },
 ]
 
-export function BookingModal({ open, onClose, preselectedService }: BookingModalProps) {
+export function BookingModal({ open, onOpenChange, preselectedService }: BookingModalProps) {
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -132,7 +132,12 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
     const dateStr = date.toISOString().split("T")[0]
     const result = await getAvailableSlots(dateStr)
     if (result.success && result.data) {
-      setAvailableSlots(result.data)
+      const slots: BookingSlot[] = result.data.map((time: string) => ({
+        date: dateStr,
+        time,
+        available: true,
+      }))
+      setAvailableSlots(slots)
     }
     setIsLoadingSlots(false)
   }
@@ -207,7 +212,7 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
     setAccessCode("")
     setHasValidCode(false)
     setPaymentMethod("credit_card")
-    onClose()
+    onOpenChange(false)
   }
 
   const goToPrevMonth = () => {
@@ -309,9 +314,7 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
             <Button
               key={idx}
               variant={formData.time === slot.time ? "default" : "outline"}
-              className={`${formData.time === slot.time ? "bg-primary text-primary-foreground" : "bg-transparent"} ${
-                !slot.available ? "opacity-50 cursor-not-allowed" : ""
-              }`}
+              className={`${!slot.available ? "opacity-50 cursor-not-allowed" : ""}`}
               disabled={!slot.available}
               onClick={() => handleTimeSelect(slot)}
             >
@@ -330,12 +333,12 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
   if (isSuccess) {
     return (
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="bg-card max-w-md">
+        <DialogContent className="max-w-md">
           <div className="text-center py-8">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-6">
               <CheckCircleIcon className="h-8 w-8 text-green-600" />
             </div>
-            <DialogTitle className="text-2xl font-bold text-card-foreground mb-2">Booking Confirmed!</DialogTitle>
+            <DialogTitle className="text-2xl font-bold mb-2">Booking Confirmed!</DialogTitle>
             <DialogDescription className="text-muted-foreground mb-6">
               Your appointment has been scheduled for{" "}
               <strong>
@@ -343,9 +346,7 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
               </strong>
               . A confirmation email will be sent to {formData.email}.
             </DialogDescription>
-            <Button onClick={handleClose} className="bg-primary text-primary-foreground">
-              Close
-            </Button>
+            <Button onClick={handleClose}>Close</Button>
           </div>
         </DialogContent>
       </Dialog>
@@ -354,9 +355,9 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="bg-card max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader className="shrink-0">
-          <DialogTitle className="text-card-foreground">Book a Consultation</DialogTitle>
+          <DialogTitle>Book a Consultation</DialogTitle>
           <DialogDescription>Schedule a meeting with our expert consultants.</DialogDescription>
         </DialogHeader>
 
@@ -365,12 +366,14 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
             {/* Service Selection */}
             <div className="space-y-3">
               <Label>Select Service</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 {fees.map((fee) => (
                   <Card
                     key={fee.id}
-                    className={`cursor-pointer transition-all ${
-                      selectedFee?.id === fee.id ? "ring-2 ring-primary bg-primary/5" : "hover:bg-muted/50"
+                    className={`cursor-pointer transition-all border-2 ${
+                      selectedFee?.id === fee.id
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-primary/50"
                     }`}
                     onClick={() => {
                       setSelectedFee(fee)
@@ -378,14 +381,14 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
                     }}
                   >
                     <CardContent className="p-4">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <p className="font-medium text-card-foreground capitalize">
-                            {fee.serviceType.replace("_", " ")}
-                          </p>
-                          <p className="text-sm text-muted-foreground">{fee.description}</p>
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium capitalize truncate">{fee.serviceType.replace(/_/g, " ")}</p>
+                          <p className="text-sm text-muted-foreground line-clamp-2">{fee.description}</p>
                         </div>
-                        <Badge variant="secondary">${fee.amount}</Badge>
+                        <Badge variant="secondary" className="shrink-0">
+                          ${fee.amount}
+                        </Badge>
                       </div>
                     </CardContent>
                   </Card>
@@ -403,7 +406,7 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
 
             {/* Proceed to Details */}
             {canProceedToDetails && step === "calendar" && (
-              <Button onClick={() => setStep("details")} className="w-full bg-primary text-primary-foreground">
+              <Button onClick={() => setStep("details")} className="w-full">
                 Continue to Details
               </Button>
             )}
@@ -494,7 +497,7 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
                       disabled={hasValidCode}
                     />
                     {!hasValidCode ? (
-                      <Button variant="outline" className="bg-transparent" onClick={handleAccessCodeValidation}>
+                      <Button variant="outline" onClick={handleAccessCodeValidation}>
                         Apply
                       </Button>
                     ) : (
@@ -506,7 +509,7 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
 
                 <Button
                   onClick={() => setStep("payment")}
-                  className="w-full bg-primary text-primary-foreground"
+                  className="w-full"
                   disabled={!formData.name || !formData.email || !formData.phone}
                 >
                   Continue to Payment
@@ -527,7 +530,7 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Service</span>
-                      <span className="capitalize">{selectedFee?.serviceType.replace("_", " ")}</span>
+                      <span className="capitalize">{selectedFee?.serviceType.replace(/_/g, " ")}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Date & Time</span>
@@ -535,47 +538,36 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
                         {formData.date} at {formData.time}
                       </span>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Name</span>
-                      <span>{formData.name}</span>
-                    </div>
-                    <div className="border-t pt-2 mt-2">
-                      <div className="flex justify-between font-semibold">
-                        <span>Total</span>
-                        <span>
-                          ${selectedFee?.amount || 0} {selectedFee?.currency || "USD"}
-                        </span>
-                      </div>
+                    <div className="flex justify-between font-semibold text-base pt-2 border-t">
+                      <span>Total</span>
+                      <span>${selectedFee?.amount || 0}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Payment Methods */}
+                {/* Payment Method Selection */}
                 <div className="space-y-3">
                   <Label>Payment Method</Label>
-                  <RadioGroup value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
-                    <div className="grid grid-cols-2 gap-3">
-                      {paymentMethods.map((method) => {
-                        const Icon = method.icon
-                        return (
-                          <label
-                            key={method.id}
-                            className={`flex items-center gap-3 p-4 rounded-lg border cursor-pointer transition-all ${
-                              paymentMethod === method.id
-                                ? "ring-2 ring-primary bg-primary/5 border-primary"
-                                : "hover:bg-muted/50"
-                            }`}
-                          >
-                            <RadioGroupItem value={method.id} className="sr-only" />
-                            <Icon className="h-5 w-5 text-muted-foreground" />
-                            <div>
-                              <p className="font-medium text-sm">{method.name}</p>
-                              <p className="text-xs text-muted-foreground">{method.description}</p>
-                            </div>
-                          </label>
-                        )
-                      })}
-                    </div>
+                  <RadioGroup
+                    value={paymentMethod}
+                    onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
+                    className="grid grid-cols-2 gap-3"
+                  >
+                    {paymentMethods.map((method) => (
+                      <div key={method.id}>
+                        <RadioGroupItem value={method.id} id={method.id} className="peer sr-only" />
+                        <Label
+                          htmlFor={method.id}
+                          className="flex items-center gap-3 rounded-lg border-2 border-border p-4 cursor-pointer hover:bg-muted/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5"
+                        >
+                          <method.icon className="h-5 w-5 text-muted-foreground" />
+                          <div>
+                            <p className="font-medium text-sm">{method.name}</p>
+                            <p className="text-xs text-muted-foreground">{method.description}</p>
+                          </div>
+                        </Label>
+                      </div>
+                    ))}
                   </RadioGroup>
                 </div>
 
@@ -583,21 +575,32 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
                 {paymentMethod === "credit_card" && (
                   <div className="space-y-4 p-4 rounded-lg border">
                     <div className="space-y-2">
-                      <Label>Card Number</Label>
+                      <Label htmlFor="cardNumber">Card Number</Label>
                       <Input
-                        placeholder="4242 4242 4242 4242"
+                        id="cardNumber"
+                        placeholder="1234 5678 9012 3456"
                         value={cardNumber}
                         onChange={(e) => setCardNumber(e.target.value)}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Expiry</Label>
-                        <Input placeholder="MM/YY" value={cardExpiry} onChange={(e) => setCardExpiry(e.target.value)} />
+                        <Label htmlFor="expiry">Expiry Date</Label>
+                        <Input
+                          id="expiry"
+                          placeholder="MM/YY"
+                          value={cardExpiry}
+                          onChange={(e) => setCardExpiry(e.target.value)}
+                        />
                       </div>
                       <div className="space-y-2">
-                        <Label>CVC</Label>
-                        <Input placeholder="123" value={cardCvc} onChange={(e) => setCardCvc(e.target.value)} />
+                        <Label htmlFor="cvc">CVC</Label>
+                        <Input
+                          id="cvc"
+                          placeholder="123"
+                          value={cardCvc}
+                          onChange={(e) => setCardCvc(e.target.value)}
+                        />
                       </div>
                     </div>
                   </div>
@@ -607,55 +610,47 @@ export function BookingModal({ open, onClose, preselectedService }: BookingModal
                 {paymentMethod === "bank_transfer" && (
                   <div className="p-4 rounded-lg border bg-muted/30">
                     <h4 className="font-medium mb-2">Bank Transfer Details</h4>
-                    <div className="text-sm space-y-1 text-muted-foreground">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      Please transfer the payment to the following account:
+                    </p>
+                    <div className="space-y-1 text-sm">
                       <p>
-                        <strong>Bank:</strong> First National Bank
+                        <span className="text-muted-foreground">Bank:</span> First National Bank
                       </p>
                       <p>
-                        <strong>Account Name:</strong> SAMOP Consulting LLC
+                        <span className="text-muted-foreground">Account:</span> 1234567890
                       </p>
                       <p>
-                        <strong>Account Number:</strong> 1234567890
-                      </p>
-                      <p>
-                        <strong>Routing Number:</strong> 021000021
-                      </p>
-                      <p className="text-xs mt-2">
-                        Please include your name as reference. Booking will be confirmed upon payment verification.
+                        <span className="text-muted-foreground">Reference:</span> SAMOP-{Date.now()}
                       </p>
                     </div>
                   </div>
                 )}
 
-                {/* PayPal */}
+                {/* PayPal Info */}
                 {paymentMethod === "paypal" && (
                   <div className="p-4 rounded-lg border bg-muted/30 text-center">
-                    <p className="text-sm text-muted-foreground mb-3">
-                      You will be redirected to PayPal to complete your payment.
+                    <p className="text-sm text-muted-foreground">
+                      You will be redirected to PayPal to complete the payment after confirming.
                     </p>
-                    <Badge variant="secondary">PayPal Checkout</Badge>
                   </div>
                 )}
 
-                {/* Mobile Money */}
+                {/* Mobile Money Info */}
                 {paymentMethod === "mobile_money" && (
-                  <div className="space-y-4 p-4 rounded-lg border">
+                  <div className="p-4 rounded-lg border bg-muted/30">
+                    <h4 className="font-medium mb-2">Mobile Money Payment</h4>
+                    <p className="text-sm text-muted-foreground mb-3">
+                      You will receive a payment prompt on your phone after confirming.
+                    </p>
                     <div className="space-y-2">
-                      <Label>Mobile Money Provider</Label>
-                      <Input placeholder="e.g., M-Pesa, MTN Mobile Money" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Phone Number</Label>
-                      <Input placeholder="+254 7XX XXX XXX" />
+                      <Label htmlFor="mobileNumber">Mobile Money Number</Label>
+                      <Input id="mobileNumber" placeholder="+254 700 000 000" />
                     </div>
                   </div>
                 )}
 
-                <Button
-                  onClick={handleSubmit}
-                  className="w-full bg-primary text-primary-foreground"
-                  disabled={isSubmitting}
-                >
+                <Button onClick={handleSubmit} className="w-full" disabled={isSubmitting}>
                   {isSubmitting ? "Processing..." : `Pay $${selectedFee?.amount || 0} & Confirm Booking`}
                 </Button>
               </div>
