@@ -114,6 +114,9 @@ export default function ApplyPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [showErrors, setShowErrors] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+
   const [formData, setFormData] = useState<Partial<ApplicationFormData>>({
     serviceType: "education",
     educationLevel: "masters",
@@ -376,19 +379,74 @@ export default function ApplyPage() {
   }
 
   const handleSave = async () => {
-    setIsSaving(true)
-    if (formData.id) {
-      await updateApplicationForm(formData.id, formData)
-    } else {
-      const result = await createApplicationForm({
-        ...formData,
-        clientId: user?.id,
-      })
-      if (result.success && result.data) {
-        setFormData(result.data)
-      }
+    // Validate current step before saving
+    const stepErrors = validateCurrentStepErrors()
+    if (Object.keys(stepErrors).length > 0) {
+      setErrors(stepErrors)
+      setSaveError("Please fix the errors before saving")
+      setTimeout(() => setSaveError(null), 3000)
+      return
     }
+
+    setIsSaving(true)
+    setSaveSuccess(false)
+    setSaveError(null)
+
+    try {
+      if (formData.id) {
+        const result = await updateApplicationForm(formData.id, formData)
+        if (result.success) {
+          setSaveSuccess(true)
+          setTimeout(() => setSaveSuccess(false), 3000)
+        } else {
+          setSaveError(result.error || "Failed to save draft")
+          setTimeout(() => setSaveError(null), 3000)
+        }
+      } else {
+        const result = await createApplicationForm({
+          ...formData,
+          clientId: user?.id,
+        })
+        if (result.success && result.data) {
+          setFormData(result.data)
+          setSaveSuccess(true)
+          setTimeout(() => setSaveSuccess(false), 3000)
+        } else {
+          setSaveError(result.error || "Failed to save draft")
+          setTimeout(() => setSaveError(null), 3000)
+        }
+      }
+    } catch (error) {
+      setSaveError("An error occurred while saving")
+      setTimeout(() => setSaveError(null), 3000)
+    }
+
     setIsSaving(false)
+  }
+
+  const validateCurrentStepErrors = (): Record<string, string> => {
+    switch (currentStep?.id) {
+      case "service_type":
+        return validateServiceType()
+      case "personal_info":
+        return validatePersonalInfo()
+      case "education":
+        return validateEducation()
+      case "experience":
+        return validateExperience()
+      case "test_scores":
+        return validateTestScores()
+      case "preferences":
+        return validatePreferences()
+      case "immigration":
+        return validateImmigration()
+      case "sevis":
+        return validateSevis()
+      case "documents":
+        return validateDocuments()
+      default:
+        return {}
+    }
   }
 
   const handleSubmit = async () => {
@@ -1845,7 +1903,19 @@ export default function ApplyPage() {
           Previous
         </Button>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {saveSuccess && (
+            <span className="text-green-600 text-sm flex items-center gap-1">
+              <CheckCircleIcon className="h-4 w-4" />
+              Draft saved!
+            </span>
+          )}
+          {saveError && (
+            <span className="text-red-600 text-sm flex items-center gap-1">
+              <AlertCircleIcon className="h-4 w-4" />
+              {saveError}
+            </span>
+          )}
           <Button variant="outline" onClick={handleSave} disabled={isSaving}>
             <SaveIcon className="h-4 w-4 mr-2" />
             {isSaving ? "Saving..." : "Save Draft"}
