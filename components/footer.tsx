@@ -36,10 +36,10 @@ const socialLinks = [
 
 const footerLinks = {
   services: [
-    { label: "University Admissions", href: "/#services" },
-    { label: "Visa Processing", href: "/#services" },
-    { label: "SEVIS Registration", href: "/#services" },
-    { label: "Credential Evaluation", href: "/#services" },
+    { label: "University Admissions", href: "/services/university-admissions" },
+    { label: "Visa Processing", href: "/services/visa-processing" },
+    { label: "SEVIS Payment", href: "/services/sevis-payment" },
+    { label: "Credential Evaluation", href: "/services/credential-evaluation" },
   ],
   company: [
     { label: "About Us", href: "/#about" },
@@ -47,10 +47,10 @@ const footerLinks = {
     { label: "Client Portal", href: "/client/login" },
   ],
   destinations: [
-    { label: "Study in USA", href: "/#services" },
-    { label: "Study in UK", href: "/#services" },
-    { label: "Study in Canada", href: "/#services" },
-    { label: "Study in Australia", href: "/#services" },
+    { label: "Study in USA", href: "/destinations/usa" },
+    { label: "Study in UK", href: "/destinations/uk" },
+    { label: "Study in Canada", href: "/destinations/canada" },
+    { label: "Study in Australia", href: "/destinations/australia" },
   ],
   legal: [
     { label: "Privacy Policy", href: "/privacy" },
@@ -64,13 +64,11 @@ export function Footer() {
       <div className="container mx-auto px-4 py-16">
         <div className="grid gap-12 md:grid-cols-2 lg:grid-cols-5">
           <div className="lg:col-span-2">
-            <Link href="/" className="flex items-center gap-4">
-              <div className="bg-white rounded-lg p-1.5 shadow-md">
-                <Image src="/images/logo.png" alt="SAMOP Consulting" width={56} height={56} className="rounded" />
-              </div>
+            <Link href="/" className="flex items-center gap-3">
+              <Image src="/images/logo.png" alt="SAMOP Consulting" width={56} height={56} className="rounded" />
               <div>
-                <span className="font-serif text-2xl font-bold tracking-tight">SAMOP Consulting</span>
-                <p className="text-sm text-primary-foreground/80 font-medium">Your Gateway to Global Education</p>
+                <span className="font-serif text-2xl font-bold text-primary-foreground">SAMOP Consulting</span>
+                <p className="text-sm text-primary-foreground/80">Your Gateway to Global Education</p>
               </div>
             </Link>
             <p className="mt-6 text-primary-foreground/80 leading-relaxed max-w-md">
