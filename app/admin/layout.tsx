@@ -29,7 +29,8 @@ import {
   ClockIcon,
   TicketIcon,
   FolderIcon,
-  CreditCardIcon, // Added CreditCardIcon for payments
+  CreditCardIcon,
+  BuildingIcon, // Added BuildingIcon for Payment Gateways
 } from "@/components/icons"
 import type { User } from "@/lib/types"
 import { cn } from "@/lib/utils"
@@ -48,7 +49,8 @@ const navItems = [
   { href: "/admin/applications", label: "Applications", icon: FileTextIcon },
   { href: "/admin/documents", label: "Documents", icon: FolderIcon },
   { href: "/admin/appointments", label: "Appointments", icon: CalendarIcon },
-  { href: "/admin/payments", label: "Payments", icon: CreditCardIcon }, // Added Payments nav item
+  { href: "/admin/payments", label: "Payments", icon: CreditCardIcon },
+  { href: "/admin/payment-gateways", label: "Payment Gateways", icon: BuildingIcon }, // Added Payment Gateways nav item
   { href: "/admin/availability", label: "Availability", icon: ClockIcon },
   { href: "/admin/access-codes", label: "Access Codes", icon: TicketIcon },
   { href: "/admin/messages", label: "Messages", icon: MessageIcon },

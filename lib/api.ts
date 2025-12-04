@@ -29,6 +29,7 @@ import type {
   PaymentVerification,
   PaymentRegion,
   PaymentVerificationStatus,
+  PaymentGateway, // Added for Payment Gateway APIs
 } from "./types"
 
 import {
@@ -45,6 +46,7 @@ import {
   mockApplicationForms,
   mockDocumentQueue,
   mockActivityLogs,
+  mockPaymentGateways, // Added for Payment Gateway APIs
 } from "./mock-data"
 
 // Helper function to simulate API delay
@@ -875,9 +877,19 @@ export async function getMonthAvailability(
       continue
     }
 
-    // Check if there are slots available for this date
     const dayAvailability = mockAvailability.find((a) => a.date === dateStr)
-    const slotsCount = dayAvailability ? dayAvailability.slots.length : 0
+
+    let slotsCount = 0
+    if (dayAvailability) {
+      dayAvailability.slots.forEach((slot) => {
+        const [startHours, startMinutes] = slot.start.split(":").map(Number)
+        const [endHours, endMinutes] = slot.end.split(":").map(Number)
+        const startTotal = startHours * 60 + startMinutes
+        const endTotal = endHours * 60 + endMinutes
+        slotsCount += Math.floor((endTotal - startTotal) / 30)
+      })
+    }
+
     availability.push({
       date: dateStr,
       available: slotsCount > 0,
@@ -1487,4 +1499,81 @@ export async function getConsultationServices(): Promise<
     },
   ]
   return { success: true, data: services }
+}
+
+// ==========================================
+// PAYMENT GATEWAY APIs
+// ==========================================
+
+export async function getPaymentGateways(): Promise<ApiResponse<PaymentGateway[]>> {
+  await delay(300)
+  return { success: true, data: mockPaymentGateways }
+}
+
+export async function getPaymentGatewayById(id: string): Promise<ApiResponse<PaymentGateway | null>> {
+  await delay(200)
+  const gateway = mockPaymentGateways.find((g) => g.id === id)
+  return { success: true, data: gateway || null }
+}
+
+export async function getPaymentGatewaysByRegion(region: string): Promise<ApiResponse<PaymentGateway[]>> {
+  await delay(200)
+  const gateways = mockPaymentGateways.filter((g) => g.region === region && g.isActive)
+  return { success: true, data: gateways }
+}
+
+export async function createPaymentGateway(
+  data: Omit<PaymentGateway, "id" | "createdAt" | "updatedAt">,
+): Promise<ApiResponse<PaymentGateway>> {
+  await delay(500)
+  const newGateway: PaymentGateway = {
+    ...data,
+    id: "pg_" + Date.now(),
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }
+  mockPaymentGateways.push(newGateway)
+  return { success: true, data: newGateway, message: "Payment gateway created successfully!" }
+}
+
+export async function updatePaymentGateway(
+  id: string,
+  data: Partial<PaymentGateway>,
+): Promise<ApiResponse<PaymentGateway>> {
+  await delay(500)
+  const index = mockPaymentGateways.findIndex((g) => g.id === id)
+  if (index === -1) {
+    return { success: false, error: "Payment gateway not found" }
+  }
+  mockPaymentGateways[index] = {
+    ...mockPaymentGateways[index],
+    ...data,
+    updatedAt: new Date().toISOString(),
+  }
+  return { success: true, data: mockPaymentGateways[index], message: "Payment gateway updated successfully!" }
+}
+
+export async function deletePaymentGateway(id: string): Promise<ApiResponse<void>> {
+  await delay(300)
+  const index = mockPaymentGateways.findIndex((g) => g.id === id)
+  if (index === -1) {
+    return { success: false, error: "Payment gateway not found" }
+  }
+  mockPaymentGateways.splice(index, 1)
+  return { success: true, message: "Payment gateway deleted successfully!" }
+}
+
+export async function togglePaymentGatewayStatus(id: string): Promise<ApiResponse<PaymentGateway>> {
+  await delay(300)
+  const index = mockPaymentGateways.findIndex((g) => g.id === id)
+  if (index === -1) {
+    return { success: false, error: "Payment gateway not found" }
+  }
+  mockPaymentGateways[index].isActive = !mockPaymentGateways[index].isActive
+  mockPaymentGateways[index].updatedAt = new Date().toISOString()
+  return {
+    success: true,
+    data: mockPaymentGateways[index],
+    message: `Payment gateway ${mockPaymentGateways[index].isActive ? "activated" : "deactivated"}!`,
+  }
 }

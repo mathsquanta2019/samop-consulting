@@ -283,6 +283,51 @@ export interface PaymentVerification {
   createdAt: string
 }
 
+// Activity Log
+export interface ActivityLog {
+  id: string
+  entityType: "client" | "application" | "document" | "appointment"
+  entityId: string
+  action: string
+  performedBy: string
+  performedByRole: "client" | "admin"
+  details?: string
+  createdAt: string
+}
+
+// PaymentGateway type for admin management
+export type PaymentGatewayType = "credit_card" | "bank_transfer" | "paypal" | "mobile_money"
+export type PaymentGatewayRegion = "us" | "uk" | "eu" | "africa" | "asia" | "global"
+
+export interface PaymentGateway {
+  id: string
+  name: string
+  type: PaymentGatewayType
+  region: PaymentGatewayRegion
+  isActive: boolean
+  // Bank details
+  bankName?: string
+  accountName?: string
+  accountNumber?: string
+  routingNumber?: string
+  swiftCode?: string
+  iban?: string
+  bankAddress?: string
+  // Mobile money details
+  mobileProvider?: string
+  mobileNumber?: string
+  // PayPal details
+  paypalEmail?: string
+  // Card processor details
+  processorName?: string
+  merchantId?: string
+  // General
+  currency: string
+  instructions?: string
+  createdAt: string
+  updatedAt: string
+}
+
 // ==========================================
 // APPLICATION FORM TYPES
 // ==========================================
@@ -406,17 +451,5 @@ export interface DocumentUploadQueue {
   status: "uploading" | "processing" | "completed" | "failed"
   progress: number
   error?: string
-  createdAt: string
-}
-
-// Activity Log
-export interface ActivityLog {
-  id: string
-  entityType: "client" | "application" | "document" | "appointment"
-  entityId: string
-  action: string
-  performedBy: string
-  performedByRole: "client" | "admin"
-  details?: string
   createdAt: string
 }
