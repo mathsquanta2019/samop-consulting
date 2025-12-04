@@ -387,7 +387,7 @@ export async function reviewDocument(
     ...doc,
     status: data.status,
     feedback: data.feedback,
-    adminNotes: data.adminNotes,
+    adminNotes: data.adminNotes || doc.adminNotes,
   }
 
   const index = mockDocuments.findIndex((d) => d.id === docId)
@@ -1294,4 +1294,73 @@ export async function sendApplicationReminder(data: {
     data: { sent: true },
     message: `Reminder sent to ${data.clientEmail}`,
   }
+}
+
+// ==========================================
+// CONSULTATION SERVICES APIs
+// ==========================================
+
+export async function getConsultationServices(): Promise<
+  ApiResponse<{ id: string; name: string; description: string; price: number; duration: string }[]>
+> {
+  await delay(300)
+  const services = [
+    {
+      id: "initial_consultation",
+      name: "Initial Consultation",
+      description: "First-time consultation to assess your needs",
+      price: 50,
+      duration: "30 mins",
+    },
+    {
+      id: "university_admissions",
+      name: "University Admissions",
+      description: "Guidance on university applications and admissions",
+      price: 100,
+      duration: "60 mins",
+    },
+    {
+      id: "visa_consultation",
+      name: "Visa Consultation",
+      description: "Expert advice on visa applications and requirements",
+      price: 75,
+      duration: "45 mins",
+    },
+    {
+      id: "sevis_payment",
+      name: "SEVIS Payment Assistance",
+      description: "Help with SEVIS fee payment process",
+      price: 40,
+      duration: "30 mins",
+    },
+    {
+      id: "credential_evaluation",
+      name: "Credential Evaluation",
+      description: "Assessment of academic credentials",
+      price: 80,
+      duration: "45 mins",
+    },
+    {
+      id: "immigration_consulting",
+      name: "Immigration Consulting",
+      description: "Comprehensive immigration advice and planning",
+      price: 120,
+      duration: "60 mins",
+    },
+    {
+      id: "document_review",
+      name: "Document Review",
+      description: "Review and feedback on application documents",
+      price: 60,
+      duration: "30 mins",
+    },
+    {
+      id: "interview_preparation",
+      name: "Interview Preparation",
+      description: "Mock interviews and preparation tips",
+      price: 90,
+      duration: "60 mins",
+    },
+  ]
+  return { success: true, data: services }
 }

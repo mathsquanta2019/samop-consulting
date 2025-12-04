@@ -5,10 +5,10 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   CalendarIcon,
   ClockIcon,
@@ -23,13 +23,13 @@ import {
   SmartphoneIcon,
 } from "@/components/icons"
 import {
-  getAppointmentFees,
+  getConsultationServices,
   getMonthAvailability,
   getAvailableSlots,
   validateAccessCode,
   createAppointment,
 } from "@/lib/api"
-import type { AppointmentFee, BookingSlot } from "@/lib/types"
+import type { BookingSlot } from "@/lib/types"
 
 interface BookingModalProps {
   open: boolean
@@ -37,7 +37,21 @@ interface BookingModalProps {
   preselectedService?: string
 }
 
-type Step = "calendar" | "time" | "details" | "payment" | "confirm"
+interface ConsultationService {
+  id: string
+  name: string
+  description: string
+  price: number
+  duration: string
+}
+
+interface DayAvailability {
+  date: string
+  available: boolean
+  slotsCount?: number
+}
+
+type Step = "service" | "calendar" | "time" | "details" | "payment" | "confirm"
 type PaymentMethod = "credit_card" | "bank_transfer" | "paypal" | "mobile_money"
 
 const paymentMethods = [
@@ -73,15 +87,16 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
     notes: "",
   })
 
-  const [step, setStep] = useState<Step>("calendar")
+  const [step, setStep] = useState<Step>("service")
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
-  const [fees, setFees] = useState<AppointmentFee[]>([])
-  const [monthAvailability, setMonthAvailability] = useState<{ date: string; available: boolean }[]>([])
+  const [services, setServices] = useState<ConsultationService[]>([])
+  const [selectedService, setSelectedService] = useState<ConsultationService | null>(null)
+  const [monthAvailability, setMonthAvailability] = useState<DayAvailability[]>([])
   const [availableSlots, setAvailableSlots] = useState<BookingSlot[]>([])
+  const [isLoadingServices, setIsLoadingServices] = useState(false)
   const [isLoadingMonth, setIsLoadingMonth] = useState(false)
   const [isLoadingSlots, setIsLoadingSlots] = useState(false)
-  const [selectedFee, setSelectedFee] = useState<AppointmentFee | null>(null)
   const [accessCode, setAccessCode] = useState("")
   const [accessCodeError, setAccessCodeError] = useState("")
   const [hasValidCode, setHasValidCode] = useState(false)
@@ -94,10 +109,15 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
 
   useEffect(() => {
     if (open) {
-      loadFees()
+      loadServices()
+    }
+  }, [open])
+
+  useEffect(() => {
+    if (open && step === "calendar") {
       loadMonthAvailability()
     }
-  }, [open, currentMonth])
+  }, [open, currentMonth, step])
 
   useEffect(() => {
     if (selectedDay) {
@@ -105,15 +125,24 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
     }
   }, [selectedDay])
 
-  const loadFees = async () => {
-    const result = await getAppointmentFees()
-    if (result.success && result.data) {
-      setFees(result.data)
-      if (!selectedFee && result.data.length > 0) {
-        setSelectedFee(result.data[0])
-        setFormData((prev) => ({ ...prev, service: result.data[0].serviceType }))
+  useEffect(() => {
+    if (preselectedService && services.length > 0 && !selectedService) {
+      const found = services.find((s) => s.id === preselectedService)
+      if (found) {
+        setSelectedService(found)
+        setFormData((prev) => ({ ...prev, service: found.id }))
+        setStep("calendar")
       }
     }
+  }, [preselectedService, services])
+
+  const loadServices = async () => {
+    setIsLoadingServices(true)
+    const result = await getConsultationServices()
+    if (result.success && result.data) {
+      setServices(result.data)
+    }
+    setIsLoadingServices(false)
   }
 
   const loadMonthAvailability = async () => {
@@ -122,7 +151,19 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
     const month = currentMonth.getMonth()
     const result = await getMonthAvailability(year, month)
     if (result.success && result.data) {
-      setMonthAvailability(result.data)
+      const availabilityWithCounts: DayAvailability[] = await Promise.all(
+        result.data.map(async (day: { date: string; available: boolean }) => {
+          if (day.available) {
+            const slotsResult = await getAvailableSlots(day.date)
+            return {
+              ...day,
+              slotsCount: slotsResult.success ? slotsResult.data?.length || 0 : 0,
+            }
+          }
+          return { ...day, slotsCount: 0 }
+        }),
+      )
+      setMonthAvailability(availabilityWithCounts)
     }
     setIsLoadingMonth(false)
   }
@@ -142,6 +183,14 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
     setIsLoadingSlots(false)
   }
 
+  const handleServiceSelect = (serviceId: string) => {
+    const service = services.find((s) => s.id === serviceId)
+    if (service) {
+      setSelectedService(service)
+      setFormData({ ...formData, service: service.id })
+    }
+  }
+
   const handleDayClick = (date: Date) => {
     if (isPastDate(date)) return
     const dateStr = date.toISOString().split("T")[0]
@@ -150,6 +199,7 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
 
     setSelectedDay(date)
     setFormData({ ...formData, date: dateStr, time: "" })
+    setStep("time")
   }
 
   const handleTimeSelect = (slot: BookingSlot) => {
@@ -163,13 +213,10 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
     return date < today
   }
 
-  const hasAvailability = (date: Date): boolean => {
+  const getDayAvailability = (date: Date): DayAvailability | undefined => {
     const dateStr = date.toISOString().split("T")[0]
-    const dayAvail = monthAvailability.find((a) => a.date === dateStr)
-    return dayAvail?.available || false
+    return monthAvailability.find((a) => a.date === dateStr)
   }
-
-  const canProceedToDetails = formData.date && formData.time
 
   const handleAccessCodeValidation = async () => {
     if (!accessCode) {
@@ -193,25 +240,30 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
       clientPhone: formData.phone,
       date: formData.date,
       time: formData.time,
-      serviceType: selectedFee?.serviceType || "consultation",
+      serviceType: selectedService?.id || "consultation",
       notes: formData.notes,
       paymentMethod,
     })
 
     if (result.success) {
       setIsSuccess(true)
+      setStep("confirm")
     }
     setIsSubmitting(false)
   }
 
   const handleClose = () => {
-    setStep("calendar")
+    setStep("service")
     setSelectedDay(null)
+    setSelectedService(null)
     setFormData({ name: "", email: "", phone: "", service: "", date: "", time: "", notes: "" })
     setIsSuccess(false)
     setAccessCode("")
     setHasValidCode(false)
     setPaymentMethod("credit_card")
+    setCardNumber("")
+    setCardExpiry("")
+    setCardCvc("")
     onOpenChange(false)
   }
 
@@ -223,7 +275,40 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
   }
 
-  // Calendar rendering
+  const renderStepIndicator = () => {
+    const steps = [
+      { key: "service", label: "Service" },
+      { key: "calendar", label: "Date" },
+      { key: "time", label: "Time" },
+      { key: "details", label: "Details" },
+      { key: "payment", label: "Payment" },
+    ]
+    const currentIndex = steps.findIndex((s) => s.key === step)
+
+    return (
+      <div className="flex items-center justify-center gap-2 mb-6">
+        {steps.map((s, idx) => (
+          <div key={s.key} className="flex items-center">
+            <div
+              className={`h-8 w-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
+                idx < currentIndex
+                  ? "bg-primary text-primary-foreground"
+                  : idx === currentIndex
+                    ? "bg-primary text-primary-foreground ring-2 ring-primary ring-offset-2"
+                    : "bg-muted text-muted-foreground"
+              }`}
+            >
+              {idx < currentIndex ? <CheckCircleIcon className="h-4 w-4" /> : idx + 1}
+            </div>
+            {idx < steps.length - 1 && (
+              <div className={`w-8 h-0.5 mx-1 ${idx < currentIndex ? "bg-primary" : "bg-muted"}`} />
+            )}
+          </div>
+        ))}
+      </div>
+    )
+  }
+
   const renderCalendar = () => {
     const year = currentMonth.getFullYear()
     const month = currentMonth.getMonth()
@@ -238,27 +323,46 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(year, month, day)
       const isPast = isPastDate(date)
-      const hasSlots = hasAvailability(date)
+      const dayAvail = getDayAvailability(date)
+      const hasSlots = dayAvail?.available || false
+      const slotsCount = dayAvail?.slotsCount || 0
       const isSelected = selectedDay?.toDateString() === date.toDateString()
 
-      days.push(
-        <div key={day} className="relative">
-          <button
-            type="button"
-            onClick={() => handleDayClick(date)}
-            disabled={isPast || !hasSlots}
-            className={`h-10 w-10 rounded-lg text-sm font-medium transition-all ${
-              isPast ? "text-muted-foreground/40 cursor-not-allowed" : ""
-            } ${!isPast && !hasSlots ? "text-muted-foreground/60 cursor-not-allowed" : ""} ${
-              !isPast && hasSlots ? "hover:bg-primary/10 cursor-pointer" : ""
-            } ${isSelected ? "bg-primary text-primary-foreground hover:bg-primary" : ""} ${
-              !isPast && hasSlots && !isSelected ? "text-foreground" : ""
-            }`}
-          >
-            {day}
-          </button>
+      const dayButton = (
+        <button
+          type="button"
+          onClick={() => handleDayClick(date)}
+          disabled={isPast || !hasSlots}
+          className={`h-10 w-10 rounded-lg text-sm font-medium transition-all relative ${
+            isPast ? "text-muted-foreground/40 cursor-not-allowed" : ""
+          } ${!isPast && !hasSlots ? "text-muted-foreground/60 cursor-not-allowed" : ""} ${
+            !isPast && hasSlots ? "hover:bg-primary/10 cursor-pointer" : ""
+          } ${isSelected ? "bg-primary text-primary-foreground hover:bg-primary" : ""} ${
+            !isPast && hasSlots && !isSelected ? "text-foreground" : ""
+          }`}
+        >
+          {day}
           {!isPast && hasSlots && (
-            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full bg-green-500"></div>
+            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 h-1.5 w-1.5 rounded-full bg-green-500" />
+          )}
+        </button>
+      )
+
+      days.push(
+        <div key={day} className="flex items-center justify-center">
+          {!isPast && hasSlots ? (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>{dayButton}</TooltipTrigger>
+                <TooltipContent>
+                  <p>
+                    {slotsCount} slot{slotsCount !== 1 ? "s" : ""} available
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          ) : (
+            dayButton
           )}
         </div>,
       )
@@ -287,8 +391,8 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
         <div className="grid grid-cols-7 gap-1">{days}</div>
         {isLoadingMonth && <p className="text-center text-sm text-muted-foreground">Loading availability...</p>}
         <p className="text-xs text-muted-foreground text-center mt-2">
-          <span className="inline-block h-2 w-2 rounded-full bg-green-500 mr-1"></span>
-          Green dots indicate available dates
+          <span className="inline-block h-2 w-2 rounded-full bg-green-500 mr-1" />
+          Hover over green dots to see available slots
         </p>
       </div>
     )
@@ -323,9 +427,6 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
             </Button>
           ))}
         </div>
-        <Button variant="ghost" onClick={() => setSelectedDay(null)} className="mt-4">
-          <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Calendar
-        </Button>
       </div>
     )
   }
@@ -361,70 +462,122 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
           <DialogDescription>Schedule a meeting with our expert consultants.</DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="flex-1 pr-4">
-          <div className="space-y-6 py-4">
-            {/* Service Selection */}
-            <div className="space-y-3">
-              <Label>Select Service</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {fees.map((fee) => (
-                  <Card
-                    key={fee.id}
-                    className={`cursor-pointer transition-all border-2 ${
-                      selectedFee?.id === fee.id
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-primary/50"
-                    }`}
-                    onClick={() => {
-                      setSelectedFee(fee)
-                      setFormData({ ...formData, service: fee.serviceType })
-                    }}
-                  >
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium capitalize truncate">{fee.serviceType.replace(/_/g, " ")}</p>
-                          <p className="text-sm text-muted-foreground line-clamp-2">{fee.description}</p>
-                        </div>
-                        <Badge variant="secondary" className="shrink-0">
-                          ${fee.amount}
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
+        {renderStepIndicator()}
 
-            {/* Calendar or Time Selection */}
+        <ScrollArea className="flex-1 pr-4">
+          <div className="space-y-6 pb-4">
+            {/* Step 1: Service Selection */}
+            {step === "service" && (
+              <div className="space-y-4">
+                <Label>Select a Service</Label>
+                {isLoadingServices ? (
+                  <p className="text-center py-4 text-muted-foreground">Loading services...</p>
+                ) : (
+                  <Select value={formData.service} onValueChange={handleServiceSelect}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Choose a consultation service" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {services.map((service) => (
+                        <SelectItem key={service.id} value={service.id}>
+                          <div className="flex items-center justify-between w-full">
+                            <span>{service.name}</span>
+                            <span className="text-muted-foreground ml-2">${service.price}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {selectedService && (
+                  <div className="p-4 rounded-lg bg-muted/50 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <h4 className="font-semibold">{selectedService.name}</h4>
+                      <Badge variant="secondary">${selectedService.price}</Badge>
+                    </div>
+                    <p className="text-sm text-muted-foreground">{selectedService.description}</p>
+                    <p className="text-sm">
+                      <ClockIcon className="inline h-3 w-3 mr-1" />
+                      {selectedService.duration}
+                    </p>
+                  </div>
+                )}
+
+                <Button onClick={() => setStep("calendar")} className="w-full" disabled={!selectedService}>
+                  Continue to Select Date
+                </Button>
+              </div>
+            )}
+
+            {/* Step 2: Calendar Selection */}
             {step === "calendar" && (
               <div className="space-y-4">
-                <Label>Select Date & Time</Label>
-                {!selectedDay ? renderCalendar() : renderTimeSlots()}
+                <Button variant="ghost" onClick={() => setStep("service")} className="mb-2">
+                  <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Services
+                </Button>
+
+                {selectedService && (
+                  <div className="p-3 rounded-lg bg-muted/50 flex justify-between items-center">
+                    <span className="font-medium">{selectedService.name}</span>
+                    <Badge variant="secondary">${selectedService.price}</Badge>
+                  </div>
+                )}
+
+                {renderCalendar()}
               </div>
             )}
 
-            {/* Proceed to Details */}
-            {canProceedToDetails && step === "calendar" && (
-              <Button onClick={() => setStep("details")} className="w-full">
-                Continue to Details
-              </Button>
+            {/* Step 3: Time Selection */}
+            {step === "time" && (
+              <div className="space-y-4">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setStep("calendar")
+                    setSelectedDay(null)
+                  }}
+                  className="mb-2"
+                >
+                  <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Calendar
+                </Button>
+
+                {selectedService && (
+                  <div className="p-3 rounded-lg bg-muted/50 flex justify-between items-center">
+                    <span className="font-medium">{selectedService.name}</span>
+                    <Badge variant="secondary">${selectedService.price}</Badge>
+                  </div>
+                )}
+
+                {renderTimeSlots()}
+
+                {formData.time && (
+                  <Button onClick={() => setStep("details")} className="w-full">
+                    Continue to Details
+                  </Button>
+                )}
+              </div>
             )}
 
-            {/* Details Form */}
+            {/* Step 4: Details Form */}
             {step === "details" && (
               <div className="space-y-4">
-                <Button variant="ghost" onClick={() => setStep("calendar")}>
-                  <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Calendar
+                <Button variant="ghost" onClick={() => setStep("time")}>
+                  <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Time Selection
                 </Button>
 
                 <div className="p-4 rounded-lg bg-muted/50 mb-4">
                   <div className="flex items-center gap-4">
                     <CalendarIcon className="h-5 w-5 text-primary" />
                     <div>
-                      <p className="font-medium">{formData.date}</p>
-                      <p className="text-sm text-muted-foreground">at {formData.time}</p>
+                      <p className="font-medium">{selectedService?.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formData.date} at {formData.time}
+                      </p>
                     </div>
+                    <Badge variant="secondary" className="ml-auto">
+                      ${selectedService?.price}
+                    </Badge>
                   </div>
                 </div>
 
@@ -517,20 +670,19 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
               </div>
             )}
 
-            {/* Payment Step */}
+            {/* Step 5: Payment */}
             {step === "payment" && (
               <div className="space-y-4">
                 <Button variant="ghost" onClick={() => setStep("details")}>
                   <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back to Details
                 </Button>
 
-                {/* Summary */}
                 <div className="p-4 rounded-lg bg-muted/50">
                   <h4 className="font-semibold mb-3">Booking Summary</h4>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Service</span>
-                      <span className="capitalize">{selectedFee?.serviceType.replace(/_/g, " ")}</span>
+                      <span>{selectedService?.name}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Date & Time</span>
@@ -538,120 +690,109 @@ export function BookingModal({ open, onOpenChange, preselectedService }: Booking
                         {formData.date} at {formData.time}
                       </span>
                     </div>
-                    <div className="flex justify-between font-semibold text-base pt-2 border-t">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Duration</span>
+                      <span>{selectedService?.duration}</span>
+                    </div>
+                    <div className="flex justify-between font-semibold pt-2 border-t">
                       <span>Total</span>
-                      <span>${selectedFee?.amount || 0}</span>
+                      <span>${selectedService?.price}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* Payment Method Selection */}
                 <div className="space-y-3">
                   <Label>Payment Method</Label>
-                  <RadioGroup
-                    value={paymentMethod}
-                    onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}
-                    className="grid grid-cols-2 gap-3"
-                  >
+                  <div className="grid grid-cols-2 gap-3">
                     {paymentMethods.map((method) => (
-                      <div key={method.id}>
-                        <RadioGroupItem value={method.id} id={method.id} className="peer sr-only" />
-                        <Label
-                          htmlFor={method.id}
-                          className="flex items-center gap-3 rounded-lg border-2 border-border p-4 cursor-pointer hover:bg-muted/50 peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5"
-                        >
-                          <method.icon className="h-5 w-5 text-muted-foreground" />
-                          <div>
-                            <p className="font-medium text-sm">{method.name}</p>
-                            <p className="text-xs text-muted-foreground">{method.description}</p>
-                          </div>
-                        </Label>
-                      </div>
+                      <button
+                        key={method.id}
+                        type="button"
+                        onClick={() => setPaymentMethod(method.id)}
+                        className={`p-3 rounded-lg border-2 text-left transition-all ${
+                          paymentMethod === method.id
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <method.icon className="h-5 w-5 mb-2 text-primary" />
+                        <p className="font-medium text-sm">{method.name}</p>
+                        <p className="text-xs text-muted-foreground">{method.description}</p>
+                      </button>
                     ))}
-                  </RadioGroup>
+                  </div>
                 </div>
 
-                {/* Credit Card Form */}
                 {paymentMethod === "credit_card" && (
-                  <div className="space-y-4 p-4 rounded-lg border">
+                  <div className="space-y-4 p-4 border rounded-lg">
                     <div className="space-y-2">
                       <Label htmlFor="cardNumber">Card Number</Label>
                       <Input
                         id="cardNumber"
-                        placeholder="1234 5678 9012 3456"
                         value={cardNumber}
                         onChange={(e) => setCardNumber(e.target.value)}
+                        placeholder="1234 5678 9012 3456"
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="expiry">Expiry Date</Label>
+                        <Label htmlFor="cardExpiry">Expiry Date</Label>
                         <Input
-                          id="expiry"
-                          placeholder="MM/YY"
+                          id="cardExpiry"
                           value={cardExpiry}
                           onChange={(e) => setCardExpiry(e.target.value)}
+                          placeholder="MM/YY"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="cvc">CVC</Label>
+                        <Label htmlFor="cardCvc">CVC</Label>
                         <Input
-                          id="cvc"
-                          placeholder="123"
+                          id="cardCvc"
                           value={cardCvc}
                           onChange={(e) => setCardCvc(e.target.value)}
+                          placeholder="123"
                         />
                       </div>
                     </div>
                   </div>
                 )}
 
-                {/* Bank Transfer Info */}
                 {paymentMethod === "bank_transfer" && (
-                  <div className="p-4 rounded-lg border bg-muted/30">
-                    <h4 className="font-medium mb-2">Bank Transfer Details</h4>
-                    <p className="text-sm text-muted-foreground mb-3">
-                      Please transfer the payment to the following account:
-                    </p>
+                  <div className="p-4 border rounded-lg bg-muted/50">
+                    <h4 className="font-semibold mb-2">Bank Transfer Details</h4>
                     <div className="space-y-1 text-sm">
                       <p>
                         <span className="text-muted-foreground">Bank:</span> First National Bank
                       </p>
                       <p>
-                        <span className="text-muted-foreground">Account:</span> 1234567890
+                        <span className="text-muted-foreground">Account:</span> SAMOP Consulting LLC
                       </p>
                       <p>
-                        <span className="text-muted-foreground">Reference:</span> SAMOP-{Date.now()}
+                        <span className="text-muted-foreground">Account #:</span> 1234567890
+                      </p>
+                      <p>
+                        <span className="text-muted-foreground">Routing #:</span> 021000021
                       </p>
                     </div>
-                  </div>
-                )}
-
-                {/* PayPal Info */}
-                {paymentMethod === "paypal" && (
-                  <div className="p-4 rounded-lg border bg-muted/30 text-center">
-                    <p className="text-sm text-muted-foreground">
-                      You will be redirected to PayPal to complete the payment after confirming.
+                    <p className="text-xs text-muted-foreground mt-3">
+                      Please include your email as payment reference. Your booking will be confirmed upon payment
+                      verification.
                     </p>
                   </div>
                 )}
 
-                {/* Mobile Money Info */}
                 {paymentMethod === "mobile_money" && (
-                  <div className="p-4 rounded-lg border bg-muted/30">
-                    <h4 className="font-medium mb-2">Mobile Money Payment</h4>
+                  <div className="p-4 border rounded-lg bg-muted/50">
+                    <h4 className="font-semibold mb-2">Mobile Money Payment</h4>
                     <p className="text-sm text-muted-foreground mb-3">
-                      You will receive a payment prompt on your phone after confirming.
+                      Send payment to the following number and include your email as reference:
                     </p>
-                    <div className="space-y-2">
-                      <Label htmlFor="mobileNumber">Mobile Money Number</Label>
-                      <Input id="mobileNumber" placeholder="+254 700 000 000" />
-                    </div>
+                    <p className="font-mono text-lg">+1 234 567 8901</p>
                   </div>
                 )}
 
                 <Button onClick={handleSubmit} className="w-full" disabled={isSubmitting}>
-                  {isSubmitting ? "Processing..." : `Pay $${selectedFee?.amount || 0} & Confirm Booking`}
+                  {isSubmitting ? "Processing..." : `Pay $${selectedService?.price} & Confirm Booking`}
                 </Button>
               </div>
             )}
