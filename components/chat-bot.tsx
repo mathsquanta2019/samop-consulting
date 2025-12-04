@@ -169,19 +169,19 @@ export function ChatBot() {
   return (
     <div
       className={cn(
-        "fixed bottom-6 right-6 z-[9999] shadow-2xl transition-all duration-300 rounded-xl overflow-hidden bg-card",
-        isMinimized ? "w-72 h-14" : "w-[380px] h-[500px]",
+        "fixed bottom-6 right-6 z-[9999] shadow-2xl transition-all duration-300 rounded-xl overflow-hidden bg-card flex flex-col",
+        isMinimized ? "w-72 h-14" : "w-[380px] h-[520px]",
       )}
     >
-      <div className="flex flex-row items-center justify-between p-4 bg-primary text-primary-foreground">
+      <div className="flex flex-row items-center justify-between px-4 py-3 bg-primary text-primary-foreground shrink-0">
         <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8 border-2 border-primary-foreground/20">
+          <Avatar className="h-9 w-9 border-2 border-primary-foreground/20">
             <AvatarFallback className="bg-primary-foreground text-primary">
               <BotIcon className="h-4 w-4" />
             </AvatarFallback>
           </Avatar>
           <div>
-            <h3 className="text-sm font-medium">SAMOP Assistant</h3>
+            <h3 className="text-sm font-semibold">SAMOP Assistant</h3>
             {!isMinimized && <p className="text-xs text-primary-foreground/70">Online | Typically replies instantly</p>}
           </div>
         </div>
@@ -207,8 +207,7 @@ export function ChatBot() {
 
       {!isMinimized && (
         <>
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto p-4 h-[360px] bg-muted/30">
+          <div className="flex-1 overflow-y-auto p-4 bg-muted/30">
             <div className="space-y-4">
               {messages.map((message) => (
                 <div
@@ -270,8 +269,7 @@ export function ChatBot() {
             </div>
           </div>
 
-          {/* Input */}
-          <div className="p-4 border-t border-border bg-card">
+          <div className="p-3 border-t border-border bg-card shrink-0">
             <div className="flex items-center gap-2">
               <Input
                 placeholder="Type your message..."
