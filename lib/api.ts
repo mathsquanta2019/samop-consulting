@@ -25,6 +25,7 @@ import type {
   DocumentUploadQueue,
   ActivityLog,
   DocumentStatus,
+  DocumentType,
 } from "./types"
 
 import {
@@ -997,24 +998,106 @@ export async function submitApplicationForm(id: string): Promise<ApiResponse<App
 export async function reviewApplicationForm(
   id: string,
   review: {
+    action: "approve" | "reject" | "request_revision" | "request_documents" | "request_info"
     status: "pending" | "approved" | "needs_revision" | "rejected"
     comments: string
     reviewedBy: string
+    requestedDocuments?: DocumentType[]
+    requestedInfo?: string[]
   },
 ): Promise<ApiResponse<ApplicationFormData>> {
   await delay(500)
-  const form = mockApplicationForms.find((f) => f.id === id)
-  if (form) {
-    const updated = {
+  const formIndex = mockApplicationForms.findIndex((f) => f.id === id)
+  if (formIndex !== -1) {
+    const form = mockApplicationForms[formIndex]
+
+    let appStatus: ApplicationFormData["status"] = "under_review"
+    if (review.action === "approve") {
+      appStatus = "approved"
+    } else if (review.action === "reject") {
+      appStatus = "rejected"
+    } else if (
+      review.action === "request_revision" ||
+      review.action === "request_documents" ||
+      review.action === "request_info"
+    ) {
+      appStatus = "under_review"
+    }
+
+    const updated: ApplicationFormData = {
       ...form,
       adminReview: {
-        ...review,
+        reviewedBy: review.reviewedBy,
         reviewedAt: new Date().toISOString(),
+        comments: review.comments,
+        status: review.status,
       },
-      status: review.status === "approved" ? "approved" : review.status === "rejected" ? "rejected" : "under_review",
+      status: appStatus,
       updatedAt: new Date().toISOString(),
     }
-    return { success: true, data: updated as ApplicationFormData, message: "Review submitted!" }
+
+    // Update the mock data
+    mockApplicationForms[formIndex] = updated
+
+    return { success: true, data: updated, message: "Review submitted successfully!" }
+  }
+  return { success: false, error: "Application form not found" }
+}
+
+export async function requestMoreInformation(
+  formId: string,
+  requestDetails: {
+    requestedFields: string[]
+    comments: string
+    requestedBy: string
+  },
+): Promise<ApiResponse<ApplicationFormData>> {
+  await delay(500)
+  const formIndex = mockApplicationForms.findIndex((f) => f.id === formId)
+  if (formIndex !== -1) {
+    const form = mockApplicationForms[formIndex]
+    const updated: ApplicationFormData = {
+      ...form,
+      adminReview: {
+        reviewedBy: requestDetails.requestedBy,
+        reviewedAt: new Date().toISOString(),
+        comments: `Additional information requested: ${requestDetails.comments}`,
+        status: "needs_revision",
+      },
+      status: "under_review",
+      updatedAt: new Date().toISOString(),
+    }
+    mockApplicationForms[formIndex] = updated
+    return { success: true, data: updated, message: "Information request sent to client" }
+  }
+  return { success: false, error: "Application form not found" }
+}
+
+export async function requestDocuments(
+  formId: string,
+  requestDetails: {
+    documentTypes: DocumentType[]
+    comments: string
+    requestedBy: string
+  },
+): Promise<ApiResponse<ApplicationFormData>> {
+  await delay(500)
+  const formIndex = mockApplicationForms.findIndex((f) => f.id === formId)
+  if (formIndex !== -1) {
+    const form = mockApplicationForms[formIndex]
+    const updated: ApplicationFormData = {
+      ...form,
+      adminReview: {
+        reviewedBy: requestDetails.requestedBy,
+        reviewedAt: new Date().toISOString(),
+        comments: `Documents requested: ${requestDetails.documentTypes.join(", ")}. ${requestDetails.comments}`,
+        status: "needs_revision",
+      },
+      status: "under_review",
+      updatedAt: new Date().toISOString(),
+    }
+    mockApplicationForms[formIndex] = updated
+    return { success: true, data: updated, message: "Document request sent to client" }
   }
   return { success: false, error: "Application form not found" }
 }

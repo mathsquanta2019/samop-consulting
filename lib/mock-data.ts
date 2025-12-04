@@ -99,7 +99,7 @@ export const mockServices: Service[] = [
   },
 ]
 
-// Mock Applications
+// Mock Applications - IDs now match ApplicationForms
 export const mockApplications: Application[] = [
   {
     id: "app_001",
@@ -447,7 +447,6 @@ export const mockAccessCodes: AccessCode[] = [
 
 export const mockPayments: Payment[] = []
 
-// Mock Application Forms
 export const mockApplicationForms: ApplicationFormData[] = [
   {
     id: "form_001",
@@ -531,6 +530,143 @@ export const mockApplicationForms: ApplicationFormData[] = [
     updatedAt: "2024-11-15T10:00:00Z",
     submittedAt: "2024-08-15T14:00:00Z",
   },
+  {
+    id: "form_002",
+    clientId: "usr_002",
+    status: "submitted",
+    serviceType: "education",
+    educationLevel: "phd",
+    personalInfo: {
+      firstName: "Jane",
+      lastName: "Smith",
+      dateOfBirth: "1992-11-20",
+      gender: "female",
+      nationality: "British",
+      countryOfResidence: "United Kingdom",
+      address: "45 Oxford Road",
+      city: "London",
+      state: "Greater London",
+      postalCode: "SW1A 1AA",
+      phone: "+44 789 012 3456",
+      email: "jane.smith@email.com",
+      maritalStatus: "single",
+    },
+    educationHistory: [
+      {
+        id: "edu_002",
+        level: "bachelors",
+        institution: "University of Cambridge",
+        country: "United Kingdom",
+        fieldOfStudy: "Business Administration",
+        startDate: "2010-10-01",
+        endDate: "2014-06-30",
+        gpa: "First Class Honours",
+        graduated: true,
+        certificateObtained: "BA (Hons) Business Administration",
+      },
+      {
+        id: "edu_003",
+        level: "masters",
+        institution: "London School of Economics",
+        country: "United Kingdom",
+        fieldOfStudy: "International Business",
+        startDate: "2015-09-01",
+        endDate: "2016-11-30",
+        gpa: "Distinction",
+        graduated: true,
+        certificateObtained: "MSc International Business",
+      },
+    ],
+    workExperience: [
+      {
+        id: "work_002",
+        companyName: "Global Consulting Group",
+        position: "Senior Consultant",
+        country: "United Kingdom",
+        startDate: "2017-01-10",
+        endDate: "2023-12-31",
+        isCurrent: false,
+        responsibilities: "Strategic planning, client management, business development",
+      },
+    ],
+    testScores: [
+      {
+        testType: "gmat",
+        overallScore: "750",
+        datesTaken: "2024-04-10",
+        componentScores: { verbal: "42", quantitative: "49", reasoning: "8", writing: "6" },
+      },
+    ],
+    preferredCountries: ["USA", "Switzerland"],
+    preferredInstitutions: ["Harvard Business School", "Wharton", "IMD"],
+    preferredPrograms: ["Executive MBA", "International Management"],
+    intakePreference: "Spring 2025",
+    statementOfPurpose:
+      "With over 6 years of consulting experience, I aim to deepen my understanding of global business dynamics...",
+    requiredDocuments: [
+      { type: "passport", required: true, uploaded: true },
+      { type: "transcript", required: true, uploaded: true },
+      { type: "cv_resume", required: true, uploaded: true },
+      { type: "recommendation_letter", required: true, uploaded: true },
+      { type: "statement_of_purpose", required: true, uploaded: true },
+    ],
+    createdAt: "2024-09-10T11:00:00Z",
+    updatedAt: "2024-10-01T14:00:00Z",
+    submittedAt: "2024-09-25T16:00:00Z",
+  },
+  {
+    id: "form_003",
+    clientId: "usr_001",
+    status: "under_review",
+    serviceType: "immigration",
+    personalInfo: {
+      firstName: "John",
+      lastName: "Doe",
+      dateOfBirth: "1995-05-15",
+      gender: "male",
+      nationality: "Nigerian",
+      countryOfResidence: "Nigeria",
+      address: "123 Main Street",
+      city: "Lagos",
+      state: "Lagos State",
+      postalCode: "100001",
+      phone: "+1 234 567 8901",
+      email: "john.doe@email.com",
+      maritalStatus: "single",
+    },
+    educationHistory: [
+      {
+        id: "edu_004",
+        level: "bachelors",
+        institution: "University of Lagos",
+        country: "Nigeria",
+        fieldOfStudy: "Computer Science",
+        startDate: "2013-09-01",
+        endDate: "2017-07-15",
+        gpa: "3.8",
+        graduated: true,
+        certificateObtained: "B.Sc. Computer Science",
+      },
+    ],
+    immigrationInfo: {
+      purposeOfTravel: "Study",
+      previousVisaRejections: false,
+      travelHistory: "Visited UK (2019), Dubai (2022)",
+      sponsor: "self",
+      sponsorDetails: "Personal savings and family support",
+    },
+    preferredCountries: ["USA"],
+    intakePreference: "Fall 2025",
+    requiredDocuments: [
+      { type: "passport", required: true, uploaded: true },
+      { type: "financial_statement", required: true, uploaded: false },
+      { type: "birth_certificate", required: true, uploaded: true },
+      { type: "police_clearance", required: true, uploaded: false },
+    ],
+    createdAt: "2024-09-15T09:00:00Z",
+    updatedAt: "2024-10-20T11:00:00Z",
+    submittedAt: "2024-10-01T14:00:00Z",
+  },
 ]
 
 // Mock Document Upload Queue
@@ -568,5 +704,15 @@ export const mockActivityLogs: ActivityLog[] = [
     performedBy: "John Doe",
     performedByRole: "client",
     createdAt: "2024-08-01T10:00:00Z",
+  },
+  {
+    id: "log_003",
+    entityType: "application",
+    entityId: "app_001",
+    action: "review_submitted",
+    performedBy: "Admin User",
+    performedByRole: "admin",
+    details: "Application reviewed - needs revision for SOP",
+    createdAt: "2024-11-15T10:00:00Z",
   },
 ]
