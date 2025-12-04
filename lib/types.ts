@@ -328,6 +328,31 @@ export interface PaymentGateway {
   updatedAt: string
 }
 
+// Document Upload Queue
+export interface DocumentUploadQueue {
+  id: string
+  clientId: string
+  applicationId: string
+  fileName: string
+  fileSize: number
+  documentType: DocumentType
+  status: "uploading" | "processing" | "completed" | "failed"
+  progress: number
+  error?: string
+  createdAt: string
+}
+
+// Weekly Default Schedule type
+export interface WeeklyDefaultSchedule {
+  sunday: TimeSlot[]
+  monday: TimeSlot[]
+  tuesday: TimeSlot[]
+  wednesday: TimeSlot[]
+  thursday: TimeSlot[]
+  friday: TimeSlot[]
+  saturday: TimeSlot[]
+}
+
 // ==========================================
 // APPLICATION FORM TYPES
 // ==========================================
@@ -438,18 +463,4 @@ export interface ApplicationFormData {
   createdAt: string
   updatedAt: string
   submittedAt?: string
-}
-
-// Document Upload Queue
-export interface DocumentUploadQueue {
-  id: string
-  clientId: string
-  applicationId: string
-  fileName: string
-  fileSize: number
-  documentType: DocumentType
-  status: "uploading" | "processing" | "completed" | "failed"
-  progress: number
-  error?: string
-  createdAt: string
 }

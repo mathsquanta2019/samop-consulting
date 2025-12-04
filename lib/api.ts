@@ -30,6 +30,7 @@ import type {
   PaymentRegion,
   PaymentVerificationStatus,
   PaymentGateway, // Added for Payment Gateway APIs
+  TimeSlot, // Added for weekly availability
 } from "./types"
 
 import {
@@ -47,6 +48,7 @@ import {
   mockDocumentQueue,
   mockActivityLogs,
   mockPaymentGateways, // Added for Payment Gateway APIs
+  mockWeeklyDefaultSchedule, // Added for weekly availability
 } from "./mock-data"
 
 // Helper function to simulate API delay
@@ -856,16 +858,9 @@ export async function getAvailableSlots(date: string): Promise<ApiResponse<strin
 
 export const getAvailableBookingSlots = getAvailableSlots
 
-export async function getWeeklyAvailability(): Promise<ApiResponse<AvailabilitySchedule[]>> {
+export async function getWeeklyAvailability(): Promise<ApiResponse<Record<string, TimeSlot[]>>> {
   await delay(400)
-  // Return availability for the next 4 weeks
-  const today = new Date()
-  const fourWeeksLater = new Date(today.getTime() + 28 * 24 * 60 * 60 * 1000)
-  const startDate = today.toISOString().split("T")[0]
-  const endDate = fourWeeksLater.toISOString().split("T")[0]
-
-  const availability = mockAvailability.filter((a) => a.date >= startDate && a.date <= endDate)
-  return { success: true, data: availability }
+  return { success: true, data: { ...mockWeeklyDefaultSchedule } }
 }
 
 export async function getMonthAvailability(
@@ -912,6 +907,17 @@ export async function getMonthAvailability(
   }
 
   return { success: true, data: availability }
+}
+
+export async function setWeeklyAvailability(
+  day: string,
+  slots: TimeSlot[],
+): Promise<ApiResponse<Record<string, TimeSlot[]>>> {
+  await delay(400)
+  if (day in mockWeeklyDefaultSchedule) {
+    ;(mockWeeklyDefaultSchedule as Record<string, TimeSlot[]>)[day] = slots
+  }
+  return { success: true, data: { ...mockWeeklyDefaultSchedule }, message: "Weekly schedule updated!" }
 }
 
 // ==========================================

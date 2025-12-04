@@ -419,6 +419,32 @@ export const mockAvailability: AvailabilitySchedule[] = [
   },
 ]
 
+// Mock Weekly Default Schedule
+export const mockWeeklyDefaultSchedule: Record<string, { start: string; end: string }[]> = {
+  sunday: [],
+  monday: [
+    { start: "09:00", end: "12:00" },
+    { start: "14:00", end: "17:00" },
+  ],
+  tuesday: [
+    { start: "09:00", end: "12:00" },
+    { start: "14:00", end: "17:00" },
+  ],
+  wednesday: [
+    { start: "10:00", end: "13:00" },
+    { start: "15:00", end: "18:00" },
+  ],
+  thursday: [
+    { start: "09:00", end: "12:00" },
+    { start: "14:00", end: "17:00" },
+  ],
+  friday: [
+    { start: "09:00", end: "12:00" },
+    { start: "14:00", end: "16:00" },
+  ],
+  saturday: [{ start: "10:00", end: "14:00" }],
+}
+
 export const mockAppointmentFees: AppointmentFee[] = [
   {
     id: "fee_001",
