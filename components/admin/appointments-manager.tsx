@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { DataTable } from "@/components/ui/data-table"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,9 +29,15 @@ import {
   MoreHorizontalIcon,
   EyeIcon,
   EditIcon,
+  AlertCircleIcon,
 } from "@/components/icons"
 import type { Appointment, AppointmentStatus } from "@/lib/types"
-import { updateAppointmentStatus, proposeNewAppointmentTime, cancelAppointment } from "@/lib/api"
+import {
+  updateAppointmentStatus,
+  proposeNewAppointmentTime,
+  cancelAppointment,
+  respondToRescheduleRequest,
+} from "@/lib/api"
 
 interface AppointmentsManagerProps {
   appointments: Appointment[]
@@ -41,6 +48,7 @@ const statusColors: Record<AppointmentStatus, string> = {
   completed: "bg-green-100 text-green-700",
   cancelled: "bg-red-100 text-red-700",
   rescheduled: "bg-yellow-100 text-yellow-700",
+  pending_reschedule: "bg-orange-100 text-orange-700",
 }
 
 export function AppointmentsManager({ appointments: initialAppointments }: AppointmentsManagerProps) {
@@ -49,10 +57,12 @@ export function AppointmentsManager({ appointments: initialAppointments }: Appoi
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false)
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [rescheduleResponseDialogOpen, setRescheduleResponseDialogOpen] = useState(false)
   const [newDate, setNewDate] = useState("")
   const [newTime, setNewTime] = useState("")
   const [reason, setReason] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [activeTab, setActiveTab] = useState("all")
 
   const handleStatusUpdate = async (id: string, status: AppointmentStatus) => {
     const result = await updateAppointmentStatus(id, status)
@@ -94,6 +104,24 @@ export function AppointmentsManager({ appointments: initialAppointments }: Appoi
     }
     setIsSubmitting(false)
   }
+
+  const handleRespondToReschedule = async (approved: boolean) => {
+    if (!selectedApt) return
+
+    setIsSubmitting(true)
+    const result = await respondToRescheduleRequest(selectedApt.id, approved, reason)
+    if (result.success && result.data) {
+      setAppointments((prev) => prev.map((apt) => (apt.id === selectedApt.id ? result.data! : apt)))
+      setRescheduleResponseDialogOpen(false)
+      setSelectedApt(null)
+      setReason("")
+    }
+    setIsSubmitting(false)
+  }
+
+  const pendingRescheduleRequests = appointments.filter(
+    (apt) => apt.status === "pending_reschedule" && apt.rescheduleRequest?.status === "pending",
+  )
 
   const columns: ColumnDef<Appointment>[] = [
     {
@@ -159,7 +187,17 @@ export function AppointmentsManager({ appointments: initialAppointments }: Appoi
       header: "Status",
       cell: ({ row }) => {
         const status = row.getValue<AppointmentStatus>("status")
-        return <Badge className={statusColors[status]}>{status}</Badge>
+        const apt = row.original
+        return (
+          <div className="flex flex-col gap-1">
+            <Badge className={statusColors[status]}>{status.replace(/_/g, " ")}</Badge>
+            {apt.rescheduleRequest?.status === "pending" && (
+              <span className="text-xs text-orange-600 flex items-center gap-1">
+                <AlertCircleIcon className="h-3 w-3" /> Reschedule pending
+              </span>
+            )}
+          </div>
+        )
       },
       filterFn: (row, id, value) => {
         return value === "" || row.getValue(id) === value
@@ -186,6 +224,22 @@ export function AppointmentsManager({ appointments: initialAppointments }: Appoi
                 <EyeIcon className="mr-2 h-4 w-4" />
                 View Details
               </DropdownMenuItem>
+              {apt.rescheduleRequest?.status === "pending" && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setSelectedApt(apt)
+                      setReason("")
+                      setRescheduleResponseDialogOpen(true)
+                    }}
+                    className="text-orange-600"
+                  >
+                    <AlertCircleIcon className="mr-2 h-4 w-4" />
+                    Review Reschedule Request
+                  </DropdownMenuItem>
+                </>
+              )}
               {apt.status === "scheduled" && (
                 <>
                   <DropdownMenuSeparator />
@@ -229,38 +283,122 @@ export function AppointmentsManager({ appointments: initialAppointments }: Appoi
         <p className="text-muted-foreground">View and manage all scheduled appointments.</p>
       </div>
 
-      <Card className="bg-card">
-        <CardContent className="pt-6">
-          <DataTable
-            columns={columns}
-            data={appointments}
-            searchPlaceholder="Search by client name or email..."
-            exportFilename="samop-appointments"
-            filterColumns={[
-              {
-                key: "type",
-                label: "Type",
-                options: [
-                  { value: "consultation", label: "Consultation" },
-                  { value: "document_review", label: "Document Review" },
-                  { value: "interview_prep", label: "Interview Prep" },
-                  { value: "visa_guidance", label: "Visa Guidance" },
-                ],
-              },
-              {
-                key: "status",
-                label: "Status",
-                options: [
-                  { value: "scheduled", label: "Scheduled" },
-                  { value: "completed", label: "Completed" },
-                  { value: "cancelled", label: "Cancelled" },
-                  { value: "rescheduled", label: "Rescheduled" },
-                ],
-              },
-            ]}
-          />
-        </CardContent>
-      </Card>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="all">All Appointments</TabsTrigger>
+          <TabsTrigger value="reschedule_requests" className="relative">
+            Reschedule Requests
+            {pendingRescheduleRequests.length > 0 && (
+              <span className="ml-2 bg-orange-500 text-white text-xs rounded-full px-1.5 py-0.5">
+                {pendingRescheduleRequests.length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="all">
+          <Card className="bg-card">
+            <CardContent className="pt-6">
+              <DataTable
+                columns={columns}
+                data={appointments}
+                searchPlaceholder="Search by client name or email..."
+                exportFilename="samop-appointments"
+                filterColumns={[
+                  {
+                    key: "type",
+                    label: "Type",
+                    options: [
+                      { value: "consultation", label: "Consultation" },
+                      { value: "document_review", label: "Document Review" },
+                      { value: "interview_prep", label: "Interview Prep" },
+                      { value: "visa_guidance", label: "Visa Guidance" },
+                    ],
+                  },
+                  {
+                    key: "status",
+                    label: "Status",
+                    options: [
+                      { value: "scheduled", label: "Scheduled" },
+                      { value: "completed", label: "Completed" },
+                      { value: "cancelled", label: "Cancelled" },
+                      { value: "rescheduled", label: "Rescheduled" },
+                      { value: "pending_reschedule", label: "Pending Reschedule" },
+                    ],
+                  },
+                ]}
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="reschedule_requests">
+          <Card className="bg-card">
+            <CardContent className="pt-6">
+              {pendingRescheduleRequests.length === 0 ? (
+                <div className="text-center py-12">
+                  <CalendarIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-medium">No Pending Requests</h3>
+                  <p className="text-muted-foreground">There are no reschedule requests to review.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {pendingRescheduleRequests.map((apt) => (
+                    <div key={apt.id} className="p-4 border rounded-lg bg-orange-50 border-orange-200">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-medium">{apt.clientName}</h4>
+                          <p className="text-sm text-muted-foreground">{apt.clientEmail}</p>
+                          <div className="mt-2 space-y-1 text-sm">
+                            <p>
+                              <strong>Current:</strong> {new Date(apt.date).toLocaleDateString()} at {apt.time}
+                            </p>
+                            <p className="text-orange-700">
+                              <strong>Proposed:</strong>{" "}
+                              {apt.rescheduleRequest &&
+                                new Date(apt.rescheduleRequest.proposedDate).toLocaleDateString()}{" "}
+                              at {apt.rescheduleRequest?.proposedTime}
+                            </p>
+                            {apt.rescheduleRequest?.reason && (
+                              <p className="text-muted-foreground">
+                                <strong>Reason:</strong> {apt.rescheduleRequest.reason}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-red-600 border-red-200 hover:bg-red-50 bg-transparent"
+                            onClick={() => {
+                              setSelectedApt(apt)
+                              setReason("")
+                              setRescheduleResponseDialogOpen(true)
+                            }}
+                          >
+                            <XCircleIcon className="mr-1 h-4 w-4" /> Reject
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700 text-white"
+                            onClick={() => {
+                              setSelectedApt(apt)
+                              handleRespondToReschedule(true)
+                            }}
+                          >
+                            <CheckCircleIcon className="mr-1 h-4 w-4" /> Approve
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
 
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="bg-card max-w-lg">
@@ -408,6 +546,66 @@ export function AppointmentsManager({ appointments: initialAppointments }: Appoi
                 disabled={isSubmitting}
               >
                 {isSubmitting ? "Cancelling..." : "Cancel Appointment"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rescheduleResponseDialogOpen} onOpenChange={setRescheduleResponseDialogOpen}>
+        <DialogContent className="bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-card-foreground">Review Reschedule Request</DialogTitle>
+            <DialogDescription>
+              Approve or reject this reschedule request from {selectedApt?.clientName}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {selectedApt?.rescheduleRequest && (
+              <div className="space-y-3">
+                <div className="p-3 rounded-lg bg-muted">
+                  <p className="text-sm">
+                    <strong>Current:</strong> {new Date(selectedApt.date).toLocaleDateString()} at {selectedApt.time}
+                  </p>
+                </div>
+                <div className="p-3 rounded-lg bg-orange-50 border border-orange-200">
+                  <p className="text-sm text-orange-800">
+                    <strong>Proposed:</strong>{" "}
+                    {new Date(selectedApt.rescheduleRequest.proposedDate).toLocaleDateString()} at{" "}
+                    {selectedApt.rescheduleRequest?.proposedTime}
+                  </p>
+                  {selectedApt.rescheduleRequest.reason && (
+                    <p className="text-sm text-orange-700 mt-1">
+                      <strong>Client's reason:</strong> {selectedApt.rescheduleRequest.reason}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Notes to Client (Optional)</Label>
+              <Textarea
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder="Add a note for the client..."
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="flex-1 text-red-600 border-red-200 hover:bg-red-50 bg-transparent"
+                onClick={() => handleRespondToReschedule(false)}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Processing..." : "Reject Request"}
+              </Button>
+              <Button
+                className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                onClick={() => handleRespondToReschedule(true)}
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? "Processing..." : "Approve & Apply"}
               </Button>
             </div>
           </div>

@@ -102,7 +102,7 @@ export interface Document {
 
 // Appointment Types
 export type AppointmentType = "consultation" | "document_review" | "interview_prep" | "visa_guidance"
-export type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "rescheduled"
+export type AppointmentStatus = "scheduled" | "completed" | "cancelled" | "rescheduled" | "pending_reschedule"
 
 export interface Appointment {
   id: string
@@ -116,6 +116,16 @@ export interface Appointment {
   time: string
   duration: number
   notes?: string
+  rescheduleRequest?: {
+    proposedDate: string
+    proposedTime: string
+    reason: string
+    requestedBy: "client" | "admin"
+    requestedAt: string
+    status: "pending" | "approved" | "rejected"
+    adminNotes?: string
+    respondedAt?: string
+  }
   createdAt: string
 }
 

@@ -1,8 +1,10 @@
 "use client"
 
+import { useRef } from "react"
+
 import type React from "react"
-import { useState, useEffect, useRef } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useState, useEffect } from "react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,6 +22,8 @@ import {
   SmartphoneIcon,
   UploadIcon,
   CopyIcon,
+  CheckIcon,
+  TagIcon,
 } from "@/components/icons"
 import {
   getConsultationServices,
@@ -28,6 +32,7 @@ import {
   createAppointment,
   submitPaymentVerification,
   getBankDetails,
+  validateWaiverCode,
 } from "@/lib/api"
 import type { BookingSlot, PaymentRegion } from "@/lib/types"
 
@@ -77,6 +82,12 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
   const [transactionId, setTransactionId] = useState("")
   const [receiptFile, setReceiptFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [waiverCode, setWaiverCode] = useState("")
+  const [waiverDiscount, setWaiverDiscount] = useState(0)
+  const [waiverMessage, setWaiverMessage] = useState("")
+  const [isValidatingCode, setIsValidatingCode] = useState(false)
+  const [waiverError, setWaiverError] = useState("")
 
   const selectedService = services.find((s) => s.id === selectedServiceId)
 
@@ -150,6 +161,9 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
       setReceiptFile(null)
       setBookingComplete(false)
       setAppointmentId(null)
+      setWaiverCode("")
+      setWaiverDiscount(0)
+      setWaiverMessage("")
     }, 300)
   }
 
@@ -168,7 +182,7 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
       notes: formData.notes,
       paymentMethod,
       paymentStatus: paymentMethod === "credit_card" ? "paid" : "pending_verification",
-      amount: selectedService.price,
+      amount: getDiscountedPrice(),
     })
 
     if (!appointmentResult.success || !appointmentResult.data) {
@@ -186,7 +200,7 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
         clientName: formData.name,
         paymentMethod,
         region: paymentRegion,
-        amount: selectedService.price,
+        amount: getDiscountedPrice(),
         currency: paymentRegion === "africa" ? "NGN" : "USD",
         transactionId: transactionId || undefined,
         receiptFile: receiptFile || undefined,
@@ -196,6 +210,24 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
     setIsSubmitting(false)
     setBookingComplete(true)
     setStep("confirm")
+  }
+
+  const handleValidateWaiverCode = async () => {
+    if (!waiverCode.trim()) return
+
+    setIsValidatingCode(true)
+    setWaiverError("")
+    setWaiverMessage("")
+
+    const result = await validateWaiverCode(waiverCode)
+    if (result.success && result.data) {
+      setWaiverDiscount(result.data.discount)
+      setWaiverMessage(result.data.message)
+    } else {
+      setWaiverError(result.error || "Invalid code")
+      setWaiverDiscount(0)
+    }
+    setIsValidatingCode(false)
   }
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -222,8 +254,6 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
   const formatDateKey = (year: number, month: number, day: number) => {
     return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`
   }
-
-  const { daysInMonth, startingDay } = getDaysInMonth(currentMonth)
 
   const renderCalendar = () => {
     const days = []
@@ -298,12 +328,361 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
 
   const bankDetails = getBankDetails(paymentRegion)
 
+  const getDiscountedPrice = () => {
+    if (!selectedService) return 0
+    const discount = (selectedService.price * waiverDiscount) / 100
+    return selectedService.price - discount
+  }
+
+  const renderPaymentStep = () => (
+    <div className="space-y-4">
+      <Button variant="ghost" size="sm" onClick={() => setStep("details")}>
+        <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back
+      </Button>
+
+      {/* Booking Summary */}
+      <div className="p-4 rounded-lg bg-muted/50">
+        <h4 className="font-semibold mb-2">Booking Summary</h4>
+        <div className="space-y-1 text-sm">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Service</span>
+            <span>{selectedService?.name}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Date & Time</span>
+            <span>
+              {formData.date} at {formData.time}
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">Duration</span>
+            <span>{selectedService?.duration}</span>
+          </div>
+          {waiverDiscount > 0 && (
+            <>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Subtotal</span>
+                <span className="line-through">${selectedService?.price}</span>
+              </div>
+              <div className="flex justify-between text-green-600">
+                <span>Discount ({waiverDiscount}%)</span>
+                <span>-${(((selectedService?.price || 0) * waiverDiscount) / 100).toFixed(2)}</span>
+              </div>
+            </>
+          )}
+          <div className="flex justify-between font-semibold pt-2 border-t mt-2">
+            <span>Total</span>
+            <span>${getDiscountedPrice().toFixed(2)}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Waiver Code Section */}
+      <div className="space-y-2 p-4 border rounded-lg bg-muted/30">
+        <Label className="flex items-center gap-2">
+          <TagIcon className="h-4 w-4" />
+          Have a waiver or discount code?
+        </Label>
+        <div className="flex gap-2">
+          <Input
+            placeholder="Enter code"
+            value={waiverCode}
+            onChange={(e) => {
+              setWaiverCode(e.target.value.toUpperCase())
+              setWaiverError("")
+              if (!e.target.value) {
+                setWaiverDiscount(0)
+                setWaiverMessage("")
+              }
+            }}
+            className="flex-1"
+          />
+          <Button
+            variant="outline"
+            onClick={handleValidateWaiverCode}
+            disabled={!waiverCode.trim() || isValidatingCode}
+          >
+            {isValidatingCode ? "Checking..." : "Apply"}
+          </Button>
+        </div>
+        {waiverMessage && (
+          <p className="text-sm text-green-600 flex items-center gap-1">
+            <CheckIcon className="h-4 w-4" /> {waiverMessage}
+          </p>
+        )}
+        {waiverError && <p className="text-sm text-red-600">{waiverError}</p>}
+      </div>
+
+      {/* Skip payment if 100% discount */}
+      {waiverDiscount === 100 ? (
+        <Button
+          onClick={handleSubmit}
+          disabled={isSubmitting}
+          className="w-full bg-green-600 hover:bg-green-700 text-white"
+        >
+          {isSubmitting ? "Booking..." : "Confirm Free Booking"}
+        </Button>
+      ) : (
+        <>
+          {/* Payment Method Selection */}
+          <div className="space-y-2">
+            <Label>Payment Method</Label>
+            <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select payment method" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="credit_card">
+                  <div className="flex items-center gap-2">
+                    <CreditCardIcon className="h-4 w-4" />
+                    <span>Credit/Debit Card</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="bank_transfer">
+                  <div className="flex items-center gap-2">
+                    <BuildingIcon className="h-4 w-4" />
+                    <span>Bank Transfer</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="mobile_money">
+                  <div className="flex items-center gap-2">
+                    <SmartphoneIcon className="h-4 w-4" />
+                    <span>Mobile Money (M-Pesa, MTN, Airtel)</span>
+                  </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Credit Card Form */}
+          {paymentMethod === "credit_card" && (
+            <div className="space-y-3 p-4 border rounded-lg">
+              <div className="flex items-center gap-2 mb-2">
+                <CreditCardIcon className="h-5 w-5 text-primary" />
+                <span className="font-medium">Card Details</span>
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="cardNumber">Card Number</Label>
+                <Input
+                  id="cardNumber"
+                  value={cardNumber}
+                  onChange={(e) => setCardNumber(e.target.value)}
+                  placeholder="1234 5678 9012 3456"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="cardExpiry">Expiry</Label>
+                  <Input
+                    id="cardExpiry"
+                    value={cardExpiry}
+                    onChange={(e) => setCardExpiry(e.target.value)}
+                    placeholder="MM/YY"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="cardCvc">CVC</Label>
+                  <Input id="cardCvc" value={cardCvc} onChange={(e) => setCardCvc(e.target.value)} placeholder="123" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bank Transfer Form */}
+          {paymentMethod === "bank_transfer" && (
+            <div className="space-y-3 p-4 border rounded-lg">
+              <div className="flex items-center gap-2">
+                <BuildingIcon className="h-5 w-5 text-primary" />
+                <span className="font-medium">Bank Transfer Details</span>
+              </div>
+
+              <div className="space-y-2 text-sm bg-muted/50 p-3 rounded-lg">
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Bank:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium">{bankDetails.bankName}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => copyToClipboard(bankDetails.bankName)}
+                    >
+                      <CopyIcon className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Account:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium">{bankDetails.accountName}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => copyToClipboard(bankDetails.accountName)}
+                    >
+                      <CopyIcon className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-muted-foreground">Account #:</span>
+                  <div className="flex items-center gap-1">
+                    <span className="font-medium font-mono">{bankDetails.accountNumber}</span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6"
+                      onClick={() => copyToClipboard(bankDetails.accountNumber)}
+                    >
+                      <CopyIcon className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                {bankDetails.routingNumber && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">Routing #:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium font-mono">{bankDetails.routingNumber}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => copyToClipboard(bankDetails.routingNumber)}
+                      >
+                        <CopyIcon className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                {bankDetails.swiftCode && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-muted-foreground">SWIFT:</span>
+                    <div className="flex items-center gap-1">
+                      <span className="font-medium font-mono">{bankDetails.swiftCode}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => copyToClipboard(bankDetails.swiftCode)}
+                      >
+                        <CopyIcon className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">{bankDetails.instructions}</p>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="transactionId">Transaction ID / Reference</Label>
+                <Input
+                  id="transactionId"
+                  value={transactionId}
+                  onChange={(e) => setTransactionId(e.target.value)}
+                  placeholder="Enter your transaction reference"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Upload Payment Receipt (Optional)</Label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*,.pdf"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full bg-transparent"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <UploadIcon className="mr-2 h-4 w-4" />
+                  {receiptFile ? receiptFile.name : "Choose File"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Mobile Money Form */}
+          {paymentMethod === "mobile_money" && (
+            <div className="space-y-3 p-4 border rounded-lg">
+              <div className="flex items-center gap-2">
+                <SmartphoneIcon className="h-5 w-5 text-primary" />
+                <span className="font-medium">Mobile Money</span>
+              </div>
+
+              {bankDetails.mobileMoney && (
+                <div className="space-y-2 text-sm">
+                  <div className="p-2 bg-green-50 rounded border border-green-200">
+                    <p className="font-medium text-green-700">M-Pesa (Kenya)</p>
+                    <p className="font-mono">{bankDetails.mobileMoney.mpesa.number}</p>
+                    <p className="text-xs text-muted-foreground">{bankDetails.mobileMoney.mpesa.name}</p>
+                  </div>
+                  <div className="p-2 bg-yellow-50 rounded border border-yellow-200">
+                    <p className="font-medium text-yellow-700">MTN Mobile Money</p>
+                    <p className="font-mono">{bankDetails.mobileMoney.mtn.number}</p>
+                    <p className="text-xs text-muted-foreground">{bankDetails.mobileMoney.mtn.name}</p>
+                  </div>
+                  <div className="p-2 bg-red-50 rounded border border-red-200">
+                    <p className="font-medium text-red-700">Airtel Money</p>
+                    <p className="font-mono">{bankDetails.mobileMoney.airtel.number}</p>
+                    <p className="text-xs text-muted-foreground">{bankDetails.mobileMoney.airtel.name}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-1">
+                <Label htmlFor="mobileTransactionId">Transaction ID</Label>
+                <Input
+                  id="mobileTransactionId"
+                  value={transactionId}
+                  onChange={(e) => setTransactionId(e.target.value)}
+                  placeholder="Enter transaction ID"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <Label>Upload Screenshot (Optional)</Label>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full bg-transparent"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <UploadIcon className="mr-2 h-4 w-4" />
+                  {receiptFile ? receiptFile.name : "Choose File"}
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Submit Button */}
+          <Button onClick={handleSubmit} className="w-full" disabled={isSubmitting}>
+            {isSubmitting
+              ? "Processing..."
+              : paymentMethod === "credit_card"
+                ? `Pay $${getDiscountedPrice().toFixed(2)} & Confirm`
+                : "Submit Booking"}
+          </Button>
+        </>
+      )}
+    </div>
+  )
+
+  const { daysInMonth, startingDay } = getDaysInMonth(currentMonth)
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[550px] max-h-[90vh] flex flex-col p-0">
         <DialogHeader className="p-6 pb-2 shrink-0">
           <DialogTitle className="text-xl font-bold">Book a Consultation</DialogTitle>
-          <p className="text-sm text-muted-foreground">Schedule a meeting with our expert consultants.</p>
+          <DialogDescription className="text-sm text-muted-foreground">
+            Schedule a meeting with our expert consultants.
+          </DialogDescription>
         </DialogHeader>
 
         {/* Step indicator */}
@@ -542,310 +921,7 @@ export function BookingModal({ open, onOpenChange }: BookingModalProps) {
           )}
 
           {/* Step 5: Payment */}
-          {step === "payment" && (
-            <div className="space-y-4">
-              <Button variant="ghost" size="sm" onClick={() => setStep("details")}>
-                <ChevronLeftIcon className="mr-2 h-4 w-4" /> Back
-              </Button>
-
-              {/* Booking Summary */}
-              <div className="p-4 rounded-lg bg-muted/50">
-                <h4 className="font-semibold mb-2">Booking Summary</h4>
-                <div className="space-y-1 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Service</span>
-                    <span>{selectedService?.name}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Date & Time</span>
-                    <span>
-                      {formData.date} at {formData.time}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Duration</span>
-                    <span>{selectedService?.duration}</span>
-                  </div>
-                  <div className="flex justify-between font-semibold pt-2 border-t mt-2">
-                    <span>Total</span>
-                    <span>${selectedService?.price}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Payment Method</Label>
-                <Select value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as PaymentMethod)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select payment method" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="credit_card">
-                      <div className="flex items-center gap-2">
-                        <CreditCardIcon className="h-4 w-4" />
-                        <span>Credit/Debit Card</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="bank_transfer">
-                      <div className="flex items-center gap-2">
-                        <BuildingIcon className="h-4 w-4" />
-                        <span>Bank Transfer</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="mobile_money">
-                      <div className="flex items-center gap-2">
-                        <SmartphoneIcon className="h-4 w-4" />
-                        <span>Mobile Money (M-Pesa, MTN, Airtel)</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Region Selection for Bank Transfer / Mobile Money */}
-              {(paymentMethod === "bank_transfer" || paymentMethod === "mobile_money") && (
-                <div className="space-y-2">
-                  <Label>Your Region</Label>
-                  <Select value={paymentRegion} onValueChange={(v) => setPaymentRegion(v as PaymentRegion)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select your region" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="us">United States</SelectItem>
-                      <SelectItem value="africa">Africa</SelectItem>
-                      <SelectItem value="international">International</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Credit Card Form */}
-              {paymentMethod === "credit_card" && (
-                <div className="space-y-3 p-4 border rounded-lg">
-                  <div className="flex items-center gap-2 mb-2">
-                    <CreditCardIcon className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Card Details</span>
-                  </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="cardNumber">Card Number</Label>
-                    <Input
-                      id="cardNumber"
-                      value={cardNumber}
-                      onChange={(e) => setCardNumber(e.target.value)}
-                      placeholder="1234 5678 9012 3456"
-                    />
-                  </div>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1">
-                      <Label htmlFor="cardExpiry">Expiry</Label>
-                      <Input
-                        id="cardExpiry"
-                        value={cardExpiry}
-                        onChange={(e) => setCardExpiry(e.target.value)}
-                        placeholder="MM/YY"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <Label htmlFor="cardCvc">CVC</Label>
-                      <Input
-                        id="cardCvc"
-                        value={cardCvc}
-                        onChange={(e) => setCardCvc(e.target.value)}
-                        placeholder="123"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Bank Transfer Form */}
-              {paymentMethod === "bank_transfer" && (
-                <div className="space-y-3 p-4 border rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <BuildingIcon className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Bank Transfer Details</span>
-                  </div>
-
-                  <div className="space-y-2 text-sm bg-muted/50 p-3 rounded-lg">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Bank:</span>
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium">{bankDetails.bankName}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => copyToClipboard(bankDetails.bankName)}
-                        >
-                          <CopyIcon className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Account:</span>
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium">{bankDetails.accountName}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => copyToClipboard(bankDetails.accountName)}
-                        >
-                          <CopyIcon className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Account #:</span>
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium font-mono">{bankDetails.accountNumber}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => copyToClipboard(bankDetails.accountNumber)}
-                        >
-                          <CopyIcon className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    </div>
-                    {bankDetails.routingNumber && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">Routing #:</span>
-                        <div className="flex items-center gap-1">
-                          <span className="font-medium font-mono">{bankDetails.routingNumber}</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => copyToClipboard(bankDetails.routingNumber)}
-                          >
-                            <CopyIcon className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    {bankDetails.swiftCode && (
-                      <div className="flex justify-between items-center">
-                        <span className="text-muted-foreground">SWIFT:</span>
-                        <div className="flex items-center gap-1">
-                          <span className="font-medium font-mono">{bankDetails.swiftCode}</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6"
-                            onClick={() => copyToClipboard(bankDetails.swiftCode)}
-                          >
-                            <CopyIcon className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-                    <p className="text-xs text-muted-foreground mt-2 pt-2 border-t">{bankDetails.instructions}</p>
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label htmlFor="transactionId">Transaction ID / Reference</Label>
-                    <Input
-                      id="transactionId"
-                      value={transactionId}
-                      onChange={(e) => setTransactionId(e.target.value)}
-                      placeholder="Enter your transaction reference"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label>Upload Payment Receipt (Optional)</Label>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*,.pdf"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full bg-transparent"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <UploadIcon className="mr-2 h-4 w-4" />
-                      {receiptFile ? receiptFile.name : "Choose File"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Mobile Money Form */}
-              {paymentMethod === "mobile_money" && (
-                <div className="space-y-3 p-4 border rounded-lg">
-                  <div className="flex items-center gap-2">
-                    <SmartphoneIcon className="h-5 w-5 text-primary" />
-                    <span className="font-medium">Mobile Money</span>
-                  </div>
-
-                  {bankDetails.mobileMoney && (
-                    <div className="space-y-2 text-sm">
-                      <div className="p-2 bg-green-50 rounded border border-green-200">
-                        <p className="font-medium text-green-700">M-Pesa (Kenya)</p>
-                        <p className="font-mono">{bankDetails.mobileMoney.mpesa.number}</p>
-                        <p className="text-xs text-muted-foreground">{bankDetails.mobileMoney.mpesa.name}</p>
-                      </div>
-                      <div className="p-2 bg-yellow-50 rounded border border-yellow-200">
-                        <p className="font-medium text-yellow-700">MTN Mobile Money</p>
-                        <p className="font-mono">{bankDetails.mobileMoney.mtn.number}</p>
-                        <p className="text-xs text-muted-foreground">{bankDetails.mobileMoney.mtn.name}</p>
-                      </div>
-                      <div className="p-2 bg-red-50 rounded border border-red-200">
-                        <p className="font-medium text-red-700">Airtel Money</p>
-                        <p className="font-mono">{bankDetails.mobileMoney.airtel.number}</p>
-                        <p className="text-xs text-muted-foreground">{bankDetails.mobileMoney.airtel.name}</p>
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="space-y-1">
-                    <Label htmlFor="mobileTransactionId">Transaction ID</Label>
-                    <Input
-                      id="mobileTransactionId"
-                      value={transactionId}
-                      onChange={(e) => setTransactionId(e.target.value)}
-                      placeholder="Enter transaction ID"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <Label>Upload Screenshot (Optional)</Label>
-                    <input
-                      ref={fileInputRef}
-                      type="file"
-                      accept="image/*"
-                      onChange={handleFileChange}
-                      className="hidden"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="w-full bg-transparent"
-                      onClick={() => fileInputRef.current?.click()}
-                    >
-                      <UploadIcon className="mr-2 h-4 w-4" />
-                      {receiptFile ? receiptFile.name : "Choose File"}
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Submit Button */}
-              <Button onClick={handleSubmit} className="w-full" disabled={isSubmitting}>
-                {isSubmitting
-                  ? "Processing..."
-                  : paymentMethod === "credit_card"
-                    ? `Pay $${selectedService?.price} & Confirm`
-                    : "Submit Booking"}
-              </Button>
-            </div>
-          )}
+          {step === "payment" && renderPaymentStep()}
 
           {/* Confirmation Step */}
           {step === "confirm" && bookingComplete && (

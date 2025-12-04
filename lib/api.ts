@@ -505,6 +505,7 @@ export async function createAppointment(data: Partial<Appointment>): Promise<Api
     notes: data.notes,
     createdAt: new Date().toISOString(),
   }
+  mockAppointments.push(newApt)
   return { success: true, data: newApt, message: "Appointment created successfully!" }
 }
 
@@ -661,6 +662,112 @@ export async function cancelAppointment(
     data: { refundAmount, refundPercentage },
     message: refundMessage,
   }
+}
+
+export async function validateWaiverCode(
+  code: string,
+): Promise<ApiResponse<{ valid: boolean; discount: number; message: string }>> {
+  await delay(300)
+  // Check access codes first
+  const accessCode = mockAccessCodes.find((ac) => ac.code.toUpperCase() === code.toUpperCase() && !ac.isUsed)
+  if (accessCode && new Date(accessCode.expiresAt) > new Date()) {
+    return {
+      success: true,
+      data: { valid: true, discount: 100, message: "Waiver code applied! Fee waived completely." },
+    }
+  }
+
+  // Check for partial discount codes
+  const discountCodes: Record<string, number> = {
+    SAMOP10: 10,
+    SAMOP20: 20,
+    SAMOP50: 50,
+  }
+
+  const discount = discountCodes[code.toUpperCase()]
+  if (discount) {
+    return {
+      success: true,
+      data: { valid: true, discount, message: `${discount}% discount applied!` },
+    }
+  }
+
+  return { success: false, error: "Invalid or expired waiver code" }
+}
+
+export async function requestReschedule(
+  appointmentId: string,
+  proposedDate: string,
+  proposedTime: string,
+  reason: string,
+): Promise<ApiResponse<Appointment>> {
+  await delay(500)
+  const aptIndex = mockAppointments.findIndex((apt) => apt.id === appointmentId)
+  if (aptIndex !== -1) {
+    mockAppointments[aptIndex] = {
+      ...mockAppointments[aptIndex],
+      status: "pending_reschedule",
+      rescheduleRequest: {
+        proposedDate,
+        proposedTime,
+        reason,
+        requestedBy: "client",
+        requestedAt: new Date().toISOString(),
+        status: "pending",
+      },
+    }
+    return {
+      success: true,
+      data: mockAppointments[aptIndex],
+      message: "Reschedule request submitted! We will review and respond shortly.",
+    }
+  }
+  return { success: false, error: "Appointment not found" }
+}
+
+export async function respondToRescheduleRequest(
+  appointmentId: string,
+  approved: boolean,
+  adminNotes?: string,
+): Promise<ApiResponse<Appointment>> {
+  await delay(500)
+  const aptIndex = mockAppointments.findIndex((apt) => apt.id === appointmentId)
+  if (aptIndex !== -1 && mockAppointments[aptIndex].rescheduleRequest) {
+    const apt = mockAppointments[aptIndex]
+    if (approved && apt.rescheduleRequest) {
+      // Apply the new time
+      mockAppointments[aptIndex] = {
+        ...apt,
+        date: apt.rescheduleRequest.proposedDate,
+        time: apt.rescheduleRequest.proposedTime,
+        status: "rescheduled",
+        rescheduleRequest: {
+          ...apt.rescheduleRequest,
+          status: "approved",
+          adminNotes,
+          respondedAt: new Date().toISOString(),
+        },
+      }
+    } else if (apt.rescheduleRequest) {
+      // Reject and keep original time
+      mockAppointments[aptIndex] = {
+        ...apt,
+        status: "scheduled",
+        rescheduleRequest: {
+          ...apt.rescheduleRequest,
+          status: "rejected",
+          adminNotes,
+          respondedAt: new Date().toISOString(),
+        },
+      }
+    }
+    return {
+      success: true,
+      data: mockAppointments[aptIndex],
+      message: approved ? "Reschedule approved!" : "Reschedule rejected.",
+    }
+  }
+  return { success: false, error: "Appointment or reschedule request not found" }
 }
 
 // ==========================================

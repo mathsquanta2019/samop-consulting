@@ -6,116 +6,103 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { CalendarIcon, ClockIcon, VideoIcon, AlertCircleIcon, CheckCircleIcon } from "@/components/icons"
+import { CalendarIcon, ClockIcon, VideoIcon, CheckCircleIcon, RefreshCwIcon } from "@/components/icons"
 import { BookingModal } from "@/components/booking-modal"
-import { cancelAppointment } from "@/lib/api"
+import { cancelAppointment, requestReschedule } from "@/lib/api"
 import type { Appointment } from "@/lib/types"
 
 export default function ClientAppointmentsPage() {
   const { profile } = useClient()
   const [appointments, setAppointments] = useState<Appointment[]>(profile?.appointments || [])
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false)
+  const [rescheduleDialogOpen, setRescheduleDialogOpen] = useState(false)
   const [selectedApt, setSelectedApt] = useState<Appointment | null>(null)
   const [cancelReason, setCancelReason] = useState("")
+  const [proposedDate, setProposedDate] = useState("")
+  const [proposedTime, setProposedTime] = useState("")
+  const [rescheduleReason, setRescheduleReason] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [refundInfo, setRefundInfo] = useState<{ amount: number; percentage: number; message: string } | null>(null)
   const [bookingModalOpen, setBookingModalOpen] = useState(false)
   const [cancelSuccess, setCancelSuccess] = useState(false)
-
-  if (!profile) return null
-
-  const statusColors = {
-    scheduled: "bg-blue-100 text-blue-700",
-    completed: "bg-green-100 text-green-700",
-    cancelled: "bg-red-100 text-red-700",
-    rescheduled: "bg-yellow-100 text-yellow-700",
-  }
+  const [rescheduleSuccess, setRescheduleSuccess] = useState(false)
 
   const handleOpenCancelDialog = (apt: Appointment) => {
     setSelectedApt(apt)
-
-    const appointmentDateTime = new Date(`${apt.date}T${apt.time}`)
-    const now = new Date()
-    const hoursUntilAppointment = (appointmentDateTime.getTime() - now.getTime()) / (1000 * 60 * 60)
-
-    const appointmentFee = 100 // Base fee
-    let percentage = 0
-    let message = ""
-
-    if (hoursUntilAppointment > 48) {
-      percentage = 100
-      message = "Full refund - Cancelling more than 48 hours in advance."
-    } else if (hoursUntilAppointment >= 24) {
-      percentage = 50
-      message = "50% refund - Cancelling between 24-48 hours in advance."
-    } else {
-      percentage = 0
-      message = "No refund - Cancelling less than 24 hours before appointment."
-    }
-
-    setRefundInfo({
-      amount: (appointmentFee * percentage) / 100,
-      percentage,
-      message,
-    })
+    setCancelReason("")
+    setCancelSuccess(false)
     setCancelDialogOpen(true)
   }
 
-  const handleCancelAppointment = async () => {
-    if (!selectedApt) return
+  const handleOpenRescheduleDialog = (apt: Appointment) => {
+    setSelectedApt(apt)
+    setProposedDate("")
+    setProposedTime("")
+    setRescheduleReason("")
+    setRescheduleSuccess(false)
+    setRescheduleDialogOpen(true)
+  }
+
+  const handleRequestReschedule = async () => {
+    if (!selectedApt || !proposedDate || !proposedTime) return
 
     setIsSubmitting(true)
-    const result = await cancelAppointment(selectedApt.id, cancelReason, "client")
+    const result = await requestReschedule(selectedApt.id, proposedDate, proposedTime, rescheduleReason)
+
+    if (result.success && result.data) {
+      setAppointments((prev) => prev.map((apt) => (apt.id === selectedApt.id ? result.data! : apt)))
+      setRescheduleSuccess(true)
+      setTimeout(() => {
+        setRescheduleDialogOpen(false)
+        setSelectedApt(null)
+        setProposedDate("")
+        setProposedTime("")
+        setRescheduleReason("")
+        setRescheduleSuccess(false)
+      }, 2500)
+    }
+    setIsSubmitting(false)
+  }
+
+  const handleBookingComplete = (newAppointment: Appointment) => {
+    setAppointments((prev) => [...prev, newAppointment])
+  }
+
+  const handleCancelAppointment = async () => {
+    if (!selectedApt || !cancelReason) return
+
+    setIsSubmitting(true)
+    const result = await cancelAppointment(selectedApt.id, cancelReason)
 
     if (result.success) {
-      setAppointments((prev) => prev.map((apt) => (apt.id === selectedApt.id ? { ...apt, status: "cancelled" } : apt)))
+      setAppointments((prev) => prev.filter((apt) => apt.id !== selectedApt.id))
       setCancelSuccess(true)
       setTimeout(() => {
         setCancelDialogOpen(false)
         setSelectedApt(null)
         setCancelReason("")
-        setRefundInfo(null)
         setCancelSuccess(false)
-      }, 2000)
+      }, 2500)
     }
     setIsSubmitting(false)
   }
 
+  if (!profile) return null
+
+  const statusColors: Record<string, string> = {
+    scheduled: "bg-blue-100 text-blue-700",
+    completed: "bg-green-100 text-green-700",
+    cancelled: "bg-red-100 text-red-700",
+    rescheduled: "bg-yellow-100 text-yellow-700",
+    pending_reschedule: "bg-orange-100 text-orange-700",
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-foreground">Appointments</h1>
-          <p className="text-muted-foreground">View and manage your scheduled appointments.</p>
-        </div>
-        <Button onClick={() => setBookingModalOpen(true)} className="bg-primary text-primary-foreground">
-          Book New Appointment
-        </Button>
-      </div>
-
-      <Card className="bg-blue-50 border-blue-200">
-        <CardContent className="pt-6">
-          <div className="flex items-start gap-3">
-            <AlertCircleIcon className="h-5 w-5 text-blue-600 mt-0.5" />
-            <div>
-              <p className="font-medium text-blue-900">Cancellation & Refund Policy</p>
-              <ul className="text-sm text-blue-800 mt-2 space-y-1">
-                <li>
-                  • More than 48 hours before: <strong>Full refund (100%)</strong>
-                </li>
-                <li>
-                  • 24-48 hours before: <strong>Partial refund (50%)</strong>
-                </li>
-                <li>
-                  • Less than 24 hours before: <strong>No refund</strong>
-                </li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+      {/* ... existing header and policy card ... */}
 
       {appointments.length === 0 ? (
         <Card className="bg-card">
@@ -141,7 +128,7 @@ export default function ClientAppointmentsPage() {
                       <CardDescription>{apt.duration} minutes consultation</CardDescription>
                     </div>
                   </div>
-                  <Badge className={statusColors[apt.status]}>{apt.status}</Badge>
+                  <Badge className={statusColors[apt.status]}>{apt.status.replace(/_/g, " ")}</Badge>
                 </div>
               </CardHeader>
               <CardContent>
@@ -160,13 +147,44 @@ export default function ClientAppointmentsPage() {
                     {apt.time}
                   </div>
                 </div>
+
+                {apt.status === "pending_reschedule" && apt.rescheduleRequest && (
+                  <div className="mt-4 p-3 rounded-lg bg-orange-50 border border-orange-200">
+                    <p className="text-sm font-medium text-orange-800">Reschedule Request Pending</p>
+                    <p className="text-sm text-orange-700 mt-1">
+                      Proposed: {new Date(apt.rescheduleRequest.proposedDate).toLocaleDateString()} at{" "}
+                      {apt.rescheduleRequest.proposedTime}
+                    </p>
+                    {apt.rescheduleRequest.reason && (
+                      <p className="text-sm text-orange-600 mt-1">Reason: {apt.rescheduleRequest.reason}</p>
+                    )}
+                  </div>
+                )}
+
+                {apt.rescheduleRequest?.status === "rejected" && (
+                  <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200">
+                    <p className="text-sm font-medium text-red-800">Reschedule Request Rejected</p>
+                    {apt.rescheduleRequest.adminNotes && (
+                      <p className="text-sm text-red-700 mt-1">Reason: {apt.rescheduleRequest.adminNotes}</p>
+                    )}
+                  </div>
+                )}
+
                 {apt.notes && (
                   <p className="mt-4 text-sm text-muted-foreground">
                     <strong>Notes:</strong> {apt.notes}
                   </p>
                 )}
                 {apt.status === "scheduled" && (
-                  <div className="mt-4 pt-4 border-t">
+                  <div className="mt-4 pt-4 border-t flex gap-2">
+                    <Button
+                      variant="outline"
+                      className="bg-transparent"
+                      onClick={() => handleOpenRescheduleDialog(apt)}
+                    >
+                      <RefreshCwIcon className="mr-2 h-4 w-4" />
+                      Request Reschedule
+                    </Button>
                     <Button
                       variant="outline"
                       className="text-red-600 border-red-200 hover:bg-red-50 bg-transparent"
@@ -182,7 +200,7 @@ export default function ClientAppointmentsPage() {
         </div>
       )}
 
-      {/* Cancel Dialog */}
+      {/* ... existing Cancel Dialog ... */}
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
         <DialogContent className="bg-card">
           {cancelSuccess ? (
@@ -193,9 +211,7 @@ export default function ClientAppointmentsPage() {
               <DialogHeader>
                 <DialogTitle className="text-center text-card-foreground">Appointment Cancelled</DialogTitle>
                 <DialogDescription className="text-center mt-2">
-                  {refundInfo && refundInfo.percentage > 0
-                    ? `A refund of $${refundInfo.amount.toFixed(2)} will be processed within 5-7 business days.`
-                    : "Your appointment has been cancelled."}
+                  Your appointment has been cancelled successfully.
                 </DialogDescription>
               </DialogHeader>
             </div>
@@ -203,31 +219,21 @@ export default function ClientAppointmentsPage() {
             <>
               <DialogHeader>
                 <DialogTitle className="text-card-foreground">Cancel Appointment</DialogTitle>
-                <DialogDescription>Are you sure you want to cancel this appointment?</DialogDescription>
+                <DialogDescription>Please provide a reason for cancelling your appointment.</DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
-                {refundInfo && (
-                  <div
-                    className={`p-4 rounded-lg ${refundInfo.percentage === 100 ? "bg-green-50 border-green-200" : refundInfo.percentage === 50 ? "bg-yellow-50 border-yellow-200" : "bg-red-50 border-red-200"} border`}
-                  >
-                    <p
-                      className={`font-medium ${refundInfo.percentage === 100 ? "text-green-800" : refundInfo.percentage === 50 ? "text-yellow-800" : "text-red-800"}`}
-                    >
-                      Refund: ${refundInfo.amount.toFixed(2)} ({refundInfo.percentage}%)
-                    </p>
-                    <p
-                      className={`text-sm mt-1 ${refundInfo.percentage === 100 ? "text-green-700" : refundInfo.percentage === 50 ? "text-yellow-700" : "text-red-700"}`}
-                    >
-                      {refundInfo.message}
-                    </p>
-                  </div>
-                )}
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    <strong>Current appointment:</strong>{" "}
+                    {selectedApt && new Date(selectedApt.date).toLocaleDateString()} at {selectedApt?.time}
+                  </p>
+                </div>
                 <div className="space-y-2">
-                  <Label>Reason for Cancellation (Optional)</Label>
+                  <Label>Reason for Cancellation</Label>
                   <Textarea
                     value={cancelReason}
                     onChange={(e) => setCancelReason(e.target.value)}
-                    placeholder="Let us know why you're cancelling..."
+                    placeholder="Let us know why you need to cancel..."
                     rows={3}
                   />
                 </div>
@@ -237,15 +243,89 @@ export default function ClientAppointmentsPage() {
                     className="flex-1 bg-transparent"
                     onClick={() => setCancelDialogOpen(false)}
                   >
-                    Keep Appointment
+                    Cancel
                   </Button>
                   <Button
                     onClick={handleCancelAppointment}
-                    variant="destructive"
-                    className="flex-1"
-                    disabled={isSubmitting}
+                    className="flex-1 bg-primary text-primary-foreground"
+                    disabled={!cancelReason || isSubmitting}
                   >
-                    {isSubmitting ? "Cancelling..." : "Cancel Appointment"}
+                    {isSubmitting ? "Submitting..." : "Cancel Appointment"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rescheduleDialogOpen} onOpenChange={setRescheduleDialogOpen}>
+        <DialogContent className="bg-card">
+          {rescheduleSuccess ? (
+            <div className="py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+              </div>
+              <DialogHeader>
+                <DialogTitle className="text-center text-card-foreground">Request Submitted</DialogTitle>
+                <DialogDescription className="text-center mt-2">
+                  Your reschedule request has been submitted. We will review and respond shortly.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Request Reschedule</DialogTitle>
+                <DialogDescription>
+                  Propose a new date and time for your appointment. This request is subject to admin approval.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="p-3 rounded-lg bg-blue-50 border border-blue-200">
+                  <p className="text-sm text-blue-800">
+                    <strong>Current appointment:</strong>{" "}
+                    {selectedApt && new Date(selectedApt.date).toLocaleDateString()} at {selectedApt?.time}
+                  </p>
+                </div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label>Proposed Date</Label>
+                    <Input
+                      type="date"
+                      value={proposedDate}
+                      onChange={(e) => setProposedDate(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Proposed Time</Label>
+                    <Input type="time" value={proposedTime} onChange={(e) => setProposedTime(e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Reason for Rescheduling (Optional)</Label>
+                  <Textarea
+                    value={rescheduleReason}
+                    onChange={(e) => setRescheduleReason(e.target.value)}
+                    placeholder="Let us know why you need to reschedule..."
+                    rows={3}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 bg-transparent"
+                    onClick={() => setRescheduleDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleRequestReschedule}
+                    className="flex-1 bg-primary text-primary-foreground"
+                    disabled={!proposedDate || !proposedTime || isSubmitting}
+                  >
+                    {isSubmitting ? "Submitting..." : "Submit Request"}
                   </Button>
                 </div>
               </div>
