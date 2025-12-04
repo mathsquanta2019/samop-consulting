@@ -11,9 +11,9 @@ import { BookingModal } from "@/components/booking-modal"
 
 const navLinks = [
   { href: "/", label: "Home" },
-  { href: "#services", label: "Services" },
-  { href: "#about", label: "About" },
-  { href: "#contact", label: "Contact" },
+  { href: "/#services", label: "Services" },
+  { href: "/#about", label: "About" },
+  { href: "/#contact", label: "Contact" },
 ]
 
 export function Header() {
@@ -40,10 +40,12 @@ export function Header() {
       >
         <div className="container mx-auto flex h-20 items-center justify-between px-4">
           <Link href="/" className="flex items-center gap-3">
-            <Image src="/images/logo.png" alt="SAMOP Consulting" width={60} height={60} className="rounded" />
+            <div className="bg-white rounded-lg p-1 shadow-sm border border-border">
+              <Image src="/images/logo.png" alt="SAMOP Consulting" width={52} height={52} className="rounded" />
+            </div>
             <div className="hidden sm:block">
-              <span className="font-serif text-xl font-semibold text-primary">Samop Consulting</span>
-              <p className="text-xs text-muted-foreground">Educational & Visa Services</p>
+              <span className="font-serif text-xl font-bold text-primary tracking-tight">SAMOP Consulting</span>
+              <p className="text-xs text-muted-foreground font-medium">Educational & Visa Services</p>
             </div>
           </Link>
 
