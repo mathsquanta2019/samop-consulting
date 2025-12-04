@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import Link from "next/link"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
@@ -29,6 +29,10 @@ import {
   ClockIcon,
   MessageSquareIcon,
   SendIcon,
+  MapPinIcon, // Added
+  PhoneIcon, // Added
+  FileIcon, // Added
+  EyeIcon, // Added
 } from "@/components/icons"
 import type { ApplicationFormData, AppointmentType } from "@/lib/types"
 import {
@@ -345,32 +349,46 @@ export default function ApplicationReviewPage() {
             </p>
           </div>
         </div>
-        <Badge className={getStatusColor(form.status)}>{form.status.replace("_", " ")}</Badge>
+        <div className="flex items-center gap-2">
+          <Badge className={getStatusColor(form.status)}>{form.status.replace("_", " ")}</Badge>
+          <span className="text-sm text-muted-foreground">
+            Submitted: {new Date(form.createdAt).toLocaleDateString()}
+          </span>
+        </div>
       </div>
 
       <div className="flex gap-6">
-        {/* Main Content Area - Takes remaining width */}
+        {/* Main Content Area */}
         <div className="flex-1 min-w-0">
           <Tabs defaultValue="personal" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
-              <TabsTrigger value="personal" className="flex items-center gap-2">
-                <UserIcon className="h-4 w-4" />
+            <TabsList className="grid w-full grid-cols-6">
+              <TabsTrigger value="personal" className="flex items-center gap-1 text-xs">
+                <UserIcon className="h-3 w-3" />
                 Personal
               </TabsTrigger>
-              <TabsTrigger value="education" className="flex items-center gap-2">
-                <GraduationCapIcon className="h-4 w-4" />
+              <TabsTrigger value="education" className="flex items-center gap-1 text-xs">
+                <GraduationCapIcon className="h-3 w-3" />
                 Education
               </TabsTrigger>
-              <TabsTrigger value="documents" className="flex items-center gap-2">
-                <FileTextIcon className="h-4 w-4" />
+              <TabsTrigger value="experience" className="flex items-center gap-1 text-xs">
+                <BriefcaseIcon className="h-3 w-3" />
+                Experience
+              </TabsTrigger>
+              <TabsTrigger value="tests" className="flex items-center gap-1 text-xs">
+                <FileTextIcon className="h-3 w-3" />
+                Tests
+              </TabsTrigger>
+              <TabsTrigger value="documents" className="flex items-center gap-1 text-xs">
+                <FileIcon className="h-3 w-3" />
                 Documents
               </TabsTrigger>
-              <TabsTrigger value="preferences" className="flex items-center gap-2">
-                <GlobeIcon className="h-4 w-4" />
+              <TabsTrigger value="preferences" className="flex items-center gap-1 text-xs">
+                <GlobeIcon className="h-3 w-3" />
                 Preferences
               </TabsTrigger>
             </TabsList>
 
+            {/* Personal Tab */}
             <TabsContent value="personal" className="mt-6 space-y-4">
               <Card className="bg-card">
                 <CardHeader>
@@ -379,7 +397,7 @@ export default function ApplicationReviewPage() {
                     Personal Information
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="grid gap-4 md:grid-cols-2">
+                <CardContent className="grid gap-4 md:grid-cols-3">
                   <div>
                     <Label className="text-muted-foreground text-xs">Full Name</Label>
                     <p className="font-medium">
@@ -400,130 +418,261 @@ export default function ApplicationReviewPage() {
                   </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Nationality</Label>
-                    <p className="font-medium">{form.personalInfo.nationality}</p>
+                    <p className="font-medium">{form.personalInfo.nationality || "Not provided"}</p>
                   </div>
                   <div>
-                    <Label className="text-muted-foreground text-xs">Country of Residence</Label>
-                    <p className="font-medium">{form.personalInfo.countryOfResidence}</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label className="text-muted-foreground text-xs">Address</Label>
-                    <p className="font-medium">{form.personalInfo.address || "Not provided"}</p>
+                    <Label className="text-muted-foreground text-xs">Passport Number</Label>
+                    <p className="font-medium">{form.personalInfo.passportNumber || "Not provided"}</p>
                   </div>
                 </CardContent>
               </Card>
 
-              {form.workExperience && form.workExperience.length > 0 && (
-                <Card className="bg-card">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <BriefcaseIcon className="h-5 w-5" />
-                      Work Experience
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {form.workExperience.map((work, index) => (
-                      <div key={index} className="p-4 rounded-lg bg-muted/50">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold">{work.jobTitle}</p>
-                            <p className="text-sm text-muted-foreground">{work.company}</p>
-                          </div>
-                          <Badge variant="outline">
-                            {work.startDate} - {work.endDate || "Present"}
-                          </Badge>
-                        </div>
-                        {work.description && <p className="text-sm mt-2">{work.description}</p>}
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              )}
-            </TabsContent>
-
-            <TabsContent value="education" className="mt-6 space-y-4">
               <Card className="bg-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <GraduationCapIcon className="h-5 w-5" />
-                    Education Level
+                    <MapPinIcon className="h-5 w-5" />
+                    Address Information
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <Badge variant="secondary" className="text-base px-4 py-1">
-                    {form.educationLevel?.replace("_", " ") || "Not specified"}
-                  </Badge>
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                  <div className="md:col-span-2">
+                    <Label className="text-muted-foreground text-xs">Street Address</Label>
+                    <p className="font-medium">{form.personalInfo.address || "Not provided"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">City</Label>
+                    <p className="font-medium">{form.personalInfo.city || "Not provided"}</p>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Country</Label>
+                    <p className="font-medium">{form.personalInfo.country || "Not provided"}</p>
+                  </div>
                 </CardContent>
               </Card>
 
-              {form.educationHistory && form.educationHistory.length > 0 && (
+              {/* Emergency Contact */}
+              {form.personalInfo.emergencyContact && (
                 <Card className="bg-card">
                   <CardHeader>
-                    <CardTitle>Education History</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <PhoneIcon className="h-5 w-5" />
+                      Emergency Contact
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    {form.educationHistory.map((edu, index) => (
-                      <div key={index} className="p-4 rounded-lg bg-muted/50">
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <p className="font-semibold">{edu.degree}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {edu.institution}, {edu.country}
-                            </p>
-                            <p className="text-sm">Field: {edu.fieldOfStudy}</p>
-                          </div>
-                          <div className="text-right">
-                            <Badge variant="outline">{edu.graduationYear}</Badge>
-                            {edu.gpa && <p className="text-sm mt-1">GPA: {edu.gpa}</p>}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              )}
-
-              {form.testScores && form.testScores.length > 0 && (
-                <Card className="bg-card">
-                  <CardHeader>
-                    <CardTitle>Test Scores</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      {form.testScores.map((test, index) => (
-                        <div key={index} className="p-4 rounded-lg bg-muted/50">
-                          <div className="flex justify-between items-center">
-                            <p className="font-semibold">{test.testType}</p>
-                            <Badge className="bg-primary text-primary-foreground">{test.score}</Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground mt-1">Date: {test.dateTaken}</p>
-                        </div>
-                      ))}
+                  <CardContent className="grid gap-4 md:grid-cols-3">
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Name</Label>
+                      <p className="font-medium">{form.personalInfo.emergencyContact.name || "Not provided"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Relationship</Label>
+                      <p className="font-medium">{form.personalInfo.emergencyContact.relationship || "Not provided"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Phone</Label>
+                      <p className="font-medium">{form.personalInfo.emergencyContact.phone || "Not provided"}</p>
                     </div>
                   </CardContent>
                 </Card>
               )}
             </TabsContent>
 
-            <TabsContent value="documents" className="mt-6">
+            {/* Education Tab */}
+            <TabsContent value="education" className="mt-6 space-y-4">
+              {form.educationHistory && form.educationHistory.length > 0 ? (
+                form.educationHistory.map((edu, index) => (
+                  <Card key={index} className="bg-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <GraduationCapIcon className="h-5 w-5" />
+                          {edu.institution}
+                        </span>
+                        <Badge variant="outline">{edu.level}</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="grid gap-4 md:grid-cols-3">
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Degree/Program</Label>
+                        <p className="font-medium">{edu.degree}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Field of Study</Label>
+                        <p className="font-medium">{edu.fieldOfStudy}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Country</Label>
+                        <p className="font-medium">{edu.country}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Start Date</Label>
+                        <p className="font-medium">{edu.startDate}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">End Date</Label>
+                        <p className="font-medium">{edu.endDate || "Present"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">GPA/Grade</Label>
+                        <p className="font-medium">{edu.gpa || "Not provided"}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <Card className="bg-card">
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    No education history provided
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Experience Tab */}
+            <TabsContent value="experience" className="mt-6 space-y-4">
+              {form.workExperience && form.workExperience.length > 0 ? (
+                form.workExperience.map((work, index) => (
+                  <Card key={index} className="bg-card">
+                    <CardHeader>
+                      <CardTitle className="flex items-center justify-between">
+                        <span className="flex items-center gap-2">
+                          <BriefcaseIcon className="h-5 w-5" />
+                          {work.position}
+                        </span>
+                        {work.current && <Badge className="bg-green-100 text-green-700">Current</Badge>}
+                      </CardTitle>
+                      <p className="text-muted-foreground">{work.company}</p>
+                    </CardHeader>
+                    <CardContent className="grid gap-4 md:grid-cols-3">
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Location</Label>
+                        <p className="font-medium">{work.location || "Not provided"}</p>
+                      </div>
+                      <div>
+                        <Label className="text-muted-foreground text-xs">Duration</Label>
+                        <p className="font-medium">
+                          {work.startDate} - {work.endDate || "Present"}
+                        </p>
+                      </div>
+                      <div className="md:col-span-3">
+                        <Label className="text-muted-foreground text-xs">Responsibilities</Label>
+                        <p className="font-medium">{work.responsibilities || "Not provided"}</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              ) : (
+                <Card className="bg-card">
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    No work experience provided
+                  </CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Test Scores Tab */}
+            <TabsContent value="tests" className="mt-6 space-y-4">
+              {form.testScores ? (
+                <Card className="bg-card">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <FileTextIcon className="h-5 w-5" />
+                      Standardized Test Scores
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="grid gap-6 md:grid-cols-2">
+                    {/* English Proficiency */}
+                    {(form.testScores.ielts ||
+                      form.testScores.toefl ||
+                      form.testScores.duolingo ||
+                      form.testScores.pte) && (
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-sm border-b pb-2">English Proficiency</h4>
+                        {form.testScores.ielts && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">IELTS</span>
+                            <span className="font-medium">{form.testScores.ielts}</span>
+                          </div>
+                        )}
+                        {form.testScores.toefl && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">TOEFL</span>
+                            <span className="font-medium">{form.testScores.toefl}</span>
+                          </div>
+                        )}
+                        {form.testScores.duolingo && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">Duolingo</span>
+                            <span className="font-medium">{form.testScores.duolingo}</span>
+                          </div>
+                        )}
+                        {form.testScores.pte && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">PTE</span>
+                            <span className="font-medium">{form.testScores.pte}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Standardized Tests */}
+                    {(form.testScores.gre || form.testScores.gmat || form.testScores.sat || form.testScores.act) && (
+                      <div className="space-y-3">
+                        <h4 className="font-semibold text-sm border-b pb-2">Standardized Tests</h4>
+                        {form.testScores.gre && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">GRE</span>
+                            <span className="font-medium">{form.testScores.gre}</span>
+                          </div>
+                        )}
+                        {form.testScores.gmat && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">GMAT</span>
+                            <span className="font-medium">{form.testScores.gmat}</span>
+                          </div>
+                        )}
+                        {form.testScores.sat && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">SAT</span>
+                            <span className="font-medium">{form.testScores.sat}</span>
+                          </div>
+                        )}
+                        {form.testScores.act && (
+                          <div className="flex justify-between">
+                            <span className="text-muted-foreground">ACT</span>
+                            <span className="font-medium">{form.testScores.act}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ) : (
+                <Card className="bg-card">
+                  <CardContent className="py-8 text-center text-muted-foreground">No test scores provided</CardContent>
+                </Card>
+              )}
+            </TabsContent>
+
+            {/* Documents Tab */}
+            <TabsContent value="documents" className="mt-6 space-y-4">
               <Card className="bg-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <FileTextIcon className="h-5 w-5" />
+                    <FileIcon className="h-5 w-5" />
                     Uploaded Documents
                   </CardTitle>
-                  <CardDescription>Review all submitted documents</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {form.documents && form.documents.length > 0 ? (
                     <div className="space-y-3">
                       {form.documents.map((doc, index) => (
-                        <div key={index} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                        <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
                           <div className="flex items-center gap-3">
-                            <FileTextIcon className="h-5 w-5 text-muted-foreground" />
+                            <FileIcon className="h-5 w-5 text-muted-foreground" />
                             <div>
                               <p className="font-medium">{doc.name}</p>
-                              <p className="text-xs text-muted-foreground capitalize">{doc.type.replace("_", " ")}</p>
+                              <p className="text-xs text-muted-foreground">{doc.type}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -538,67 +687,99 @@ export default function ApplicationReviewPage() {
                             >
                               {doc.status}
                             </Badge>
-                            <Button variant="ghost" size="sm">
-                              View
-                            </Button>
+                            {doc.fileUrl && (
+                              <Button variant="ghost" size="sm" asChild>
+                                <a href={doc.fileUrl} target="_blank" rel="noopener noreferrer">
+                                  <EyeIcon className="h-4 w-4" />
+                                </a>
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}
                     </div>
                   ) : (
-                    <p className="text-center text-muted-foreground py-8">No documents uploaded yet.</p>
+                    <p className="text-center text-muted-foreground py-4">No documents uploaded</p>
                   )}
                 </CardContent>
               </Card>
             </TabsContent>
 
+            {/* Preferences Tab */}
             <TabsContent value="preferences" className="mt-6 space-y-4">
               <Card className="bg-card">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <GlobeIcon className="h-5 w-5" />
-                    Destination Preferences
+                    Study Preferences
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  {form.preferredCountries && form.preferredCountries.length > 0 && (
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Preferred Countries</Label>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {form.preferredCountries.map((country, index) => (
-                          <Badge key={index} variant="secondary">
-                            {country}
-                          </Badge>
-                        ))}
-                      </div>
+                <CardContent className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Preferred Countries</Label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {form.preferences?.preferredCountries?.map((country, i) => (
+                        <Badge key={i} variant="outline">
+                          {country}
+                        </Badge>
+                      )) || <p className="text-muted-foreground">Not specified</p>}
                     </div>
-                  )}
-                  {form.preferredInstitutions && form.preferredInstitutions.length > 0 && (
-                    <div>
-                      <Label className="text-muted-foreground text-xs">Preferred Institutions</Label>
-                      <div className="flex flex-wrap gap-2 mt-1">
-                        {form.preferredInstitutions.map((inst, index) => (
-                          <Badge key={index} variant="outline">
-                            {inst}
-                          </Badge>
-                        ))}
-                      </div>
+                  </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Preferred Programs</Label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {form.preferences?.preferredPrograms?.map((program, i) => (
+                        <Badge key={i} variant="outline">
+                          {program}
+                        </Badge>
+                      )) || <p className="text-muted-foreground">Not specified</p>}
                     </div>
-                  )}
+                  </div>
                   <div>
                     <Label className="text-muted-foreground text-xs">Intake Preference</Label>
                     <p className="font-medium">{form.intakePreference || "Not specified"}</p>
                   </div>
+                  <div>
+                    <Label className="text-muted-foreground text-xs">Budget Range</Label>
+                    <p className="font-medium">{form.preferences?.budgetRange || "Not specified"}</p>
+                  </div>
+                  {form.preferences?.specialRequirements && (
+                    <div className="md:col-span-2">
+                      <Label className="text-muted-foreground text-xs">Special Requirements</Label>
+                      <p className="font-medium">{form.preferences.specialRequirements}</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
-              {form.statementOfPurpose && (
+              {/* Immigration Info for immigration service type */}
+              {form.serviceType === "immigration" && form.immigrationInfo && (
                 <Card className="bg-card">
                   <CardHeader>
-                    <CardTitle className="text-lg">Statement of Purpose</CardTitle>
+                    <CardTitle className="flex items-center gap-2">
+                      <GlobeIcon className="h-5 w-5" />
+                      Immigration Information
+                    </CardTitle>
                   </CardHeader>
-                  <CardContent>
-                    <p className="text-sm whitespace-pre-wrap">{form.statementOfPurpose}</p>
+                  <CardContent className="grid gap-4 md:grid-cols-2">
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Visa Type Requested</Label>
+                      <p className="font-medium">{form.immigrationInfo.visaType || "Not specified"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Current Visa Status</Label>
+                      <p className="font-medium">{form.immigrationInfo.currentVisaStatus || "Not specified"}</p>
+                    </div>
+                    <div>
+                      <Label className="text-muted-foreground text-xs">Previous Visa Rejections</Label>
+                      <p className="font-medium">{form.immigrationInfo.previousRejections ? "Yes" : "No"}</p>
+                    </div>
+                    {form.immigrationInfo.travelHistory && (
+                      <div className="md:col-span-2">
+                        <Label className="text-muted-foreground text-xs">Travel History</Label>
+                        <p className="font-medium">{form.immigrationInfo.travelHistory}</p>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}

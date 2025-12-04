@@ -1300,7 +1300,7 @@ export async function requestMoreInformation(
 export async function requestDocuments(
   formId: string,
   requestDetails: {
-    documentTypes: DocumentType[]
+    documentTypes?: DocumentType[]
     comments: string
     requestedBy: string
   },
@@ -1309,12 +1309,15 @@ export async function requestDocuments(
   const formIndex = mockApplicationForms.findIndex((f) => f.id === formId)
   if (formIndex !== -1) {
     const form = mockApplicationForms[formIndex]
+    const docList = requestDetails.documentTypes?.length
+      ? requestDetails.documentTypes.join(", ")
+      : "Additional documents"
     const updated: ApplicationFormData = {
       ...form,
       adminReview: {
         reviewedBy: requestDetails.requestedBy,
         reviewedAt: new Date().toISOString(),
-        comments: `Documents requested: ${requestDetails.documentTypes.join(", ")}. ${requestDetails.comments}`,
+        comments: `Documents requested: ${docList}. ${requestDetails.comments || ""}`.trim(),
         status: "needs_revision",
       },
       status: "under_review",

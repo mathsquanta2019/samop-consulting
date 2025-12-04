@@ -21,7 +21,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import {
-  EditIcon,
   CheckCircleIcon,
   ArrowUpDownIcon,
   MoreHorizontalIcon,
@@ -59,7 +58,8 @@ const statusOptions: { value: ApplicationStatus; label: string; color: string }[
   { value: "completed", label: "Completed", color: "bg-green-200 text-green-800" },
 ]
 
-export function ApplicationsManager({ applications }: ApplicationsManagerProps) {
+export function ApplicationsManager({ applications: initialApplications }: ApplicationsManagerProps) {
+  const [applications, setApplications] = useState<Application[]>(initialApplications)
   const [selectedApp, setSelectedApp] = useState<Application | null>(null)
   const [newStatus, setNewStatus] = useState<ApplicationStatus | "">("")
   const [notes, setNotes] = useState("")
@@ -96,13 +96,14 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
     const result = await updateApplicationStatus(selectedApp.id, newStatus, notes)
 
     if (result.success) {
+      setApplications((prev) => prev.map((app) => (app.id === selectedApp.id ? { ...app, status: newStatus } : app)))
       setIsSuccess(true)
       setTimeout(() => {
         setSelectedApp(null)
         setNewStatus("")
         setNotes("")
         setIsSuccess(false)
-      }, 1500)
+      }, 2000)
     }
     setIsSubmitting(false)
   }
@@ -302,10 +303,12 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
       id: "actions",
       cell: ({ row }) => {
         const app = row.original
+        const reminderTypes = getReminderTypes(app.status)
+
         return (
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" className="h-8 w-8 p-0">
+              <Button variant="ghost" size="icon">
                 <MoreHorizontalIcon className="h-4 w-4" />
               </Button>
             </DropdownMenuTrigger>
@@ -319,10 +322,10 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
               <DropdownMenuItem
                 onClick={() => {
                   setSelectedApp(app)
-                  setNewStatus(app.status)
+                  setNewStatus("")
                 }}
               >
-                <EditIcon className="mr-2 h-4 w-4" />
+                <FileTextIcon className="mr-2 h-4 w-4" />
                 Update Status
               </DropdownMenuItem>
               <DropdownMenuSeparator />
@@ -335,15 +338,18 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
                 <MailIcon className="mr-2 h-4 w-4" />
                 Email Client
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => {
-                  setReminderApp(app)
-                  setReminderDialogOpen(true)
-                }}
-              >
-                <BellIcon className="mr-2 h-4 w-4" />
-                Send Reminder
-              </DropdownMenuItem>
+              {canSendReminder(app.status) && reminderTypes.length > 0 && (
+                <DropdownMenuItem
+                  onClick={() => {
+                    setReminderApp(app)
+                    setReminderType(reminderTypes[0].value as typeof reminderType)
+                    setReminderDialogOpen(true)
+                  }}
+                >
+                  <BellIcon className="mr-2 h-4 w-4" />
+                  Send Reminder
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem
                 onClick={() => {
                   setMeetingApp(app)
@@ -365,6 +371,35 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
   const getTodayDate = () => {
     const today = new Date()
     return today.toISOString().split("T")[0]
+  }
+
+  const getReminderTypes = (status: ApplicationStatus) => {
+    switch (status) {
+      case "pending":
+      case "draft":
+        return [
+          { value: "incomplete", label: "Complete Application" },
+          { value: "documents", label: "Submit Documents" },
+        ]
+      case "documents_required":
+        return [
+          { value: "documents", label: "Missing Documents" },
+          { value: "deadline", label: "Document Deadline" },
+        ]
+      case "under_review":
+        return [{ value: "info", label: "Additional Information Needed" }]
+      case "interview_scheduled":
+        return [
+          { value: "meeting", label: "Upcoming Interview" },
+          { value: "preparation", label: "Interview Preparation" },
+        ]
+      default:
+        return []
+    }
+  }
+
+  const canSendReminder = (status: ApplicationStatus) => {
+    return !["approved", "rejected", "completed"].includes(status)
   }
 
   return (
@@ -736,23 +771,18 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
 
       {/* Reminder Dialog */}
       <Dialog open={reminderDialogOpen} onOpenChange={setReminderDialogOpen}>
-        <DialogContent className="bg-card">
+        <DialogContent className="sm:max-w-md bg-card">
           {reminderSuccess ? (
-            <div className="text-center py-8">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
-                <CheckCircleIcon className="h-8 w-8 text-green-600" />
-              </div>
-              <DialogHeader>
-                <DialogTitle className="text-card-foreground">Reminder Sent!</DialogTitle>
-                <DialogDescription>The client has been notified about their application.</DialogDescription>
-              </DialogHeader>
+            <div className="py-8 text-center">
+              <CheckCircleIcon className="h-12 w-12 text-green-500 mx-auto mb-4" />
+              <p className="text-lg font-medium text-card-foreground">Reminder Sent!</p>
             </div>
           ) : (
             <>
               <DialogHeader>
                 <DialogTitle className="text-card-foreground">Send Application Reminder</DialogTitle>
                 <DialogDescription>
-                  Send a reminder to the client about their incomplete application or pending documents.
+                  Send a reminder to {reminderApp?.clientName || "the client"} about their application.
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
@@ -763,9 +793,12 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="incomplete">Incomplete Application</SelectItem>
-                      <SelectItem value="documents">Missing Documents</SelectItem>
-                      <SelectItem value="deadline">Upcoming Deadline</SelectItem>
+                      {reminderApp &&
+                        getReminderTypes(reminderApp.status).map((type) => (
+                          <SelectItem key={type.value} value={type.value}>
+                            {type.label}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
