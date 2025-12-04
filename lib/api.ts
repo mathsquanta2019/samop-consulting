@@ -697,28 +697,36 @@ export async function markMessageAsRead(id: string): Promise<ApiResponse<Contact
   return { success: false, error: "Message not found" }
 }
 
-export async function replyToMessage(id: string, reply: string): Promise<ApiResponse<ContactMessage>> {
+export async function replyToMessage(data: {
+  messageId: string
+  toEmail: string
+  subject: string
+  body: string
+}): Promise<ApiResponse<{ messageId: string }>> {
   await delay(500)
-  const message = mockContactMessages.find((msg) => msg.id === id)
+  const message = mockContactMessages.find((msg) => msg.id === data.messageId)
   if (message) {
-    const updated = {
-      ...message,
-      reply,
-      repliedAt: new Date().toISOString(),
-      isRead: true,
+    // In production, this would send an actual email
+    return {
+      success: true,
+      data: { messageId: "reply_" + Date.now() },
+      message: "Reply sent successfully!",
     }
-    return { success: true, data: updated, message: "Reply sent successfully!" }
   }
   return { success: false, error: "Message not found" }
 }
 
-export async function deleteContactMessage(id: string): Promise<ApiResponse<null>> {
+export async function deleteMessage(id: string): Promise<ApiResponse<null>> {
   await delay(400)
   const index = mockContactMessages.findIndex((msg) => msg.id === id)
   if (index !== -1) {
     return { success: true, message: "Message deleted successfully" }
   }
   return { success: false, error: "Message not found" }
+}
+
+export async function deleteContactMessage(id: string): Promise<ApiResponse<null>> {
+  return deleteMessage(id)
 }
 
 // ==========================================

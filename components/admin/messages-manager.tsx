@@ -4,18 +4,31 @@ import { useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Mail, Phone, Clock, Reply, Trash2 } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { MailIcon, PhoneIcon, ClockIcon, SendIcon, TrashIcon, CheckCircleIcon } from "@/components/icons"
 import type { ContactMessage } from "@/lib/types"
-import { markMessageAsRead } from "@/lib/api"
+import { markMessageAsRead, replyToMessage, deleteMessage } from "@/lib/api"
 
 interface MessagesManagerProps {
   messages: ContactMessage[]
+  onRefresh?: () => void
 }
 
-export function MessagesManager({ messages }: MessagesManagerProps) {
+export function MessagesManager({ messages, onRefresh }: MessagesManagerProps) {
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null)
+
+  const [isReplyDialogOpen, setIsReplyDialogOpen] = useState(false)
+  const [replySubject, setReplySubject] = useState("")
+  const [replyBody, setReplyBody] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [replySuccess, setReplySuccess] = useState(false)
+
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [deleteSuccess, setDeleteSuccess] = useState(false)
 
   const filteredMessages = messages.filter(
     (msg) =>
@@ -26,6 +39,54 @@ export function MessagesManager({ messages }: MessagesManagerProps) {
 
   const handleMarkAsRead = async (id: string) => {
     await markMessageAsRead(id)
+  }
+
+  const handleOpenReply = () => {
+    if (!selectedMessage) return
+    setReplySubject(`Re: ${selectedMessage.subject}`)
+    setReplyBody("")
+    setIsReplyDialogOpen(true)
+  }
+
+  const handleSendReply = async () => {
+    if (!selectedMessage || !replySubject || !replyBody) return
+    setIsSubmitting(true)
+
+    const result = await replyToMessage({
+      messageId: selectedMessage.id,
+      toEmail: selectedMessage.email,
+      subject: replySubject,
+      body: replyBody,
+    })
+
+    if (result.success) {
+      setReplySuccess(true)
+      setTimeout(() => {
+        setIsReplyDialogOpen(false)
+        setReplySubject("")
+        setReplyBody("")
+        setReplySuccess(false)
+      }, 2000)
+    }
+    setIsSubmitting(false)
+  }
+
+  const handleDeleteMessage = async () => {
+    if (!selectedMessage) return
+    setIsSubmitting(true)
+
+    const result = await deleteMessage(selectedMessage.id)
+
+    if (result.success) {
+      setDeleteSuccess(true)
+      setTimeout(() => {
+        setIsDeleteDialogOpen(false)
+        setSelectedMessage(null)
+        setDeleteSuccess(false)
+        onRefresh?.()
+      }, 1500)
+    }
+    setIsSubmitting(false)
   }
 
   const unreadCount = messages.filter((m) => !m.isRead).length
@@ -42,7 +103,7 @@ export function MessagesManager({ messages }: MessagesManagerProps) {
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <MailIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           placeholder="Search messages..."
           value={searchQuery}
@@ -109,18 +170,18 @@ export function MessagesManager({ messages }: MessagesManagerProps) {
                   <h3 className="text-lg font-semibold text-card-foreground">{selectedMessage.subject}</h3>
                   <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
+                      <MailIcon className="h-3 w-3" />
                       {selectedMessage.email}
                     </span>
                     {selectedMessage.phone && (
                       <span className="flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
+                        <PhoneIcon className="h-3 w-3" />
                         {selectedMessage.phone}
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" />
+                    <ClockIcon className="h-3 w-3" />
                     {new Date(selectedMessage.createdAt).toLocaleString()}
                   </div>
                 </div>
@@ -130,24 +191,111 @@ export function MessagesManager({ messages }: MessagesManagerProps) {
                 </div>
 
                 <div className="flex gap-2">
-                  <Button className="bg-primary text-primary-foreground">
-                    <Reply className="mr-2 h-4 w-4" />
+                  <Button className="bg-primary text-primary-foreground" onClick={handleOpenReply}>
+                    <SendIcon className="mr-2 h-4 w-4" />
                     Reply via Email
                   </Button>
-                  <Button variant="ghost" className="text-destructive">
-                    <Trash2 className="h-4 w-4" />
+                  <Button variant="ghost" className="text-destructive" onClick={() => setIsDeleteDialogOpen(true)}>
+                    <TrashIcon className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
             ) : (
               <div className="text-center py-12 text-muted-foreground">
-                <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                <MailIcon className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Select a message to view details</p>
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={isReplyDialogOpen} onOpenChange={setIsReplyDialogOpen}>
+        <DialogContent className="bg-card max-w-lg">
+          {replySuccess ? (
+            <div className="py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-card-foreground mb-2">Email Sent!</h3>
+              <p className="text-muted-foreground">Your reply has been sent to {selectedMessage?.name}.</p>
+            </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Reply to Message</DialogTitle>
+                <DialogDescription>
+                  Send a reply to {selectedMessage?.name} ({selectedMessage?.email})
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Subject</Label>
+                  <Input value={replySubject} onChange={(e) => setReplySubject(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Message</Label>
+                  <Textarea
+                    value={replyBody}
+                    onChange={(e) => setReplyBody(e.target.value)}
+                    placeholder="Write your reply..."
+                    rows={6}
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 bg-transparent"
+                    onClick={() => setIsReplyDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-primary text-primary-foreground"
+                    onClick={handleSendReply}
+                    disabled={isSubmitting || !replyBody}
+                  >
+                    <SendIcon className="mr-2 h-4 w-4" />
+                    {isSubmitting ? "Sending..." : "Send Reply"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="bg-card">
+          {deleteSuccess ? (
+            <div className="py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-card-foreground mb-2">Message Deleted</h3>
+              <p className="text-muted-foreground">The message has been removed.</p>
+            </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Delete Message</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete this message from {selectedMessage?.name}? This action cannot be
+                  undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex justify-end gap-3 pt-4">
+                <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteMessage} disabled={isSubmitting}>
+                  {isSubmitting ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

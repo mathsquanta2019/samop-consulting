@@ -124,7 +124,9 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
     if (date) {
       const result = await getAvailableSlots(date)
       if (result.success && result.data) {
-        setAvailableSlots(result.data.map((slot) => slot.time))
+        // Filter to only get times that are available
+        const times = result.data.filter((slot) => slot.available).map((slot) => slot.time)
+        setAvailableSlots(times)
       }
     }
   }
@@ -620,22 +622,28 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
                   </div>
                   <div className="space-y-2">
                     <Label>Time</Label>
-                    <Select value={meetingTime} onValueChange={setMeetingTime} disabled={!meetingDate}>
+                    <Select
+                      value={meetingTime}
+                      onValueChange={setMeetingTime}
+                      disabled={!meetingDate || availableSlots.length === 0}
+                    >
                       <SelectTrigger className="bg-background">
-                        <SelectValue placeholder={meetingDate ? "Select time" : "Select date first"} />
+                        <SelectValue
+                          placeholder={
+                            !meetingDate
+                              ? "Select date first"
+                              : availableSlots.length === 0
+                                ? "No slots available"
+                                : "Select time"
+                          }
+                        />
                       </SelectTrigger>
                       <SelectContent>
-                        {availableSlots.length > 0 ? (
-                          availableSlots.map((slot) => (
-                            <SelectItem key={slot} value={slot}>
-                              {slot}
-                            </SelectItem>
-                          ))
-                        ) : (
-                          <SelectItem value="" disabled>
-                            No slots available
+                        {availableSlots.map((slot) => (
+                          <SelectItem key={slot} value={slot}>
+                            {slot}
                           </SelectItem>
-                        )}
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>

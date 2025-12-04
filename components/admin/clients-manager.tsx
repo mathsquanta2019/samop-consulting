@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -39,7 +40,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu"
 import type { ClientProfile, ServiceType } from "@/lib/types"
-import { createOnboardingInvite, deleteClient } from "@/lib/api"
+import { createOnboardingInvite, deleteClient, updateClientProfile, sendEmailToClient } from "@/lib/api"
 
 interface ClientsManagerProps {
   clients: ClientProfile[]
@@ -64,9 +65,28 @@ export function ClientsManager({ clients, onRefresh }: ClientsManagerProps) {
   const [selectedClient, setSelectedClient] = useState<ClientProfile | null>(null)
   const [isViewDialogOpen, setIsViewDialogOpen] = useState(false)
 
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [editClient, setEditClient] = useState<ClientProfile | null>(null)
+  const [editForm, setEditForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    address: "",
+    currentCountry: "",
+  })
+  const [editSuccess, setEditSuccess] = useState(false)
+
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false)
+  const [emailClient, setEmailClient] = useState<ClientProfile | null>(null)
+  const [emailSubject, setEmailSubject] = useState("")
+  const [emailBody, setEmailBody] = useState("")
+  const [emailSuccess, setEmailSuccess] = useState(false)
+
   // Delete Confirmation
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [clientToDelete, setClientToDelete] = useState<ClientProfile | null>(null)
+  const [deleteSuccess, setDeleteSuccess] = useState(false)
 
   const handleSendInvite = async () => {
     if (!inviteEmail || selectedServices.length === 0) return
@@ -90,12 +110,83 @@ export function ClientsManager({ clients, onRefresh }: ClientsManagerProps) {
     setIsDialogOpen(false)
   }
 
+  const handleOpenEditDialog = (client: ClientProfile) => {
+    setEditClient(client)
+    setEditForm({
+      firstName: client.firstName,
+      lastName: client.lastName,
+      email: client.email,
+      phone: client.phone,
+      address: client.address || "",
+      currentCountry: client.currentCountry,
+    })
+    setIsEditDialogOpen(true)
+  }
+
+  const handleSaveEdit = async () => {
+    if (!editClient) return
+    setIsSubmitting(true)
+
+    const result = await updateClientProfile(editClient.id, editForm)
+
+    if (result.success) {
+      setEditSuccess(true)
+      setTimeout(() => {
+        setIsEditDialogOpen(false)
+        setEditClient(null)
+        setEditSuccess(false)
+        onRefresh?.()
+      }, 1500)
+    }
+    setIsSubmitting(false)
+  }
+
+  const handleOpenEmailDialog = (client: ClientProfile) => {
+    setEmailClient(client)
+    setEmailSubject("")
+    setEmailBody("")
+    setIsEmailDialogOpen(true)
+  }
+
+  const handleSendEmail = async () => {
+    if (!emailClient || !emailSubject || !emailBody) return
+    setIsSubmitting(true)
+
+    const result = await sendEmailToClient({
+      clientId: emailClient.id,
+      subject: emailSubject,
+      body: emailBody,
+    })
+
+    if (result.success) {
+      setEmailSuccess(true)
+      setTimeout(() => {
+        setIsEmailDialogOpen(false)
+        setEmailClient(null)
+        setEmailSubject("")
+        setEmailBody("")
+        setEmailSuccess(false)
+      }, 2000)
+    }
+    setIsSubmitting(false)
+  }
+
   const handleDeleteClient = async () => {
     if (!clientToDelete) return
-    await deleteClient(clientToDelete.id)
-    setIsDeleteDialogOpen(false)
-    setClientToDelete(null)
-    onRefresh?.()
+    setIsSubmitting(true)
+
+    const result = await deleteClient(clientToDelete.id)
+
+    if (result.success) {
+      setDeleteSuccess(true)
+      setTimeout(() => {
+        setIsDeleteDialogOpen(false)
+        setClientToDelete(null)
+        setDeleteSuccess(false)
+        onRefresh?.()
+      }, 1500)
+    }
+    setIsSubmitting(false)
   }
 
   const columns: ColumnDef<ClientProfile>[] = [
@@ -209,11 +300,11 @@ export function ClientsManager({ clients, onRefresh }: ClientsManagerProps) {
               <EyeIcon className="mr-2 h-4 w-4" />
               View Details
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleOpenEditDialog(row.original)}>
               <EditIcon className="mr-2 h-4 w-4" />
               Edit Client
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleOpenEmailDialog(row.original)}>
               <MailIcon className="mr-2 h-4 w-4" />
               Send Email
             </DropdownMenuItem>
@@ -399,24 +490,179 @@ export function ClientsManager({ clients, onRefresh }: ClientsManagerProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="bg-card max-w-lg">
+          {editSuccess ? (
+            <div className="py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-card-foreground mb-2">Client Updated!</h3>
+              <p className="text-muted-foreground">The client information has been saved successfully.</p>
+            </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Edit Client</DialogTitle>
+                <DialogDescription>Update client information.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>First Name</Label>
+                    <Input
+                      value={editForm.firstName}
+                      onChange={(e) => setEditForm({ ...editForm, firstName: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Last Name</Label>
+                    <Input
+                      value={editForm.lastName}
+                      onChange={(e) => setEditForm({ ...editForm, lastName: e.target.value })}
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Phone</Label>
+                  <Input value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Address</Label>
+                  <Textarea
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    rows={2}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Current Country</Label>
+                  <Input
+                    value={editForm.currentCountry}
+                    onChange={(e) => setEditForm({ ...editForm, currentCountry: e.target.value })}
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 bg-transparent"
+                    onClick={() => setIsEditDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-primary text-primary-foreground"
+                    onClick={handleSaveEdit}
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Saving..." : "Save Changes"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+        <DialogContent className="bg-card max-w-lg">
+          {emailSuccess ? (
+            <div className="py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-card-foreground mb-2">Email Sent!</h3>
+              <p className="text-muted-foreground">
+                Your email has been sent to {emailClient?.firstName} {emailClient?.lastName}.
+              </p>
+            </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Send Email</DialogTitle>
+                <DialogDescription>
+                  Send an email to {emailClient?.firstName} {emailClient?.lastName} ({emailClient?.email})
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Subject</Label>
+                  <Input
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    placeholder="Email subject..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Message</Label>
+                  <Textarea
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    placeholder="Write your message here..."
+                    rows={6}
+                  />
+                </div>
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 bg-transparent"
+                    onClick={() => setIsEmailDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1 bg-primary text-primary-foreground"
+                    onClick={handleSendEmail}
+                    disabled={isSubmitting || !emailSubject || !emailBody}
+                  >
+                    <SendIcon className="mr-2 h-4 w-4" />
+                    {isSubmitting ? "Sending..." : "Send Email"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog - Added success state */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
         <DialogContent className="bg-card">
-          <DialogHeader>
-            <DialogTitle className="text-card-foreground">Delete Client</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete {clientToDelete?.firstName} {clientToDelete?.lastName}? This action cannot
-              be undone.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={handleDeleteClient}>
-              Delete
-            </Button>
-          </div>
+          {deleteSuccess ? (
+            <div className="py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+              </div>
+              <h3 className="text-xl font-semibold text-card-foreground mb-2">Client Deleted</h3>
+              <p className="text-muted-foreground">The client has been removed from the system.</p>
+            </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Delete Client</DialogTitle>
+                <DialogDescription>
+                  Are you sure you want to delete {clientToDelete?.firstName} {clientToDelete?.lastName}? This action
+                  cannot be undone.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex justify-end gap-3 pt-4">
+                <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button variant="destructive" onClick={handleDeleteClient} disabled={isSubmitting}>
+                  {isSubmitting ? "Deleting..." : "Delete"}
+                </Button>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

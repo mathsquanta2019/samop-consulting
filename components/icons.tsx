@@ -828,7 +828,7 @@ export function ReplyIcon({ className }: { className?: string }) {
       className={className}
     >
       <polyline points="9 17 4 12 9 7" />
-      <path d="M20 18v-2a4 4 0 0 0-4-4H4" />
+      <path d="M20 12h-14" />
     </svg>
   )
 }
@@ -845,7 +845,7 @@ export function CreditCardIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
       className={className}
     >
-      <rect width="20" height="14" x="2" y="5" rx="2" />
+      <rect width="20" height="14" x="2" y="6" rx="2" />
       <line x1="2" x2="22" y1="10" y2="10" />
     </svg>
   )
@@ -1163,6 +1163,42 @@ export function ClipboardIcon({ className }: { className?: string }) {
     >
       <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
       <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" />
+    </svg>
+  )
+}
+
+export function ArrowLeftIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="m12 19-7-7 7-7" />
+      <path d="M19 12H5" />
+    </svg>
+  )
+}
+
+export function BriefcaseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16" />
+      <rect width="20" height="14" x="2" y="6" rx="2" />
     </svg>
   )
 }
