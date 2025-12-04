@@ -910,6 +910,8 @@ export function Minimize2Icon({ className }: { className?: string }) {
   )
 }
 
+export const MinimizeIcon = Minimize2Icon
+
 export function UploadIcon({ className }: { className?: string }) {
   return (
     <svg

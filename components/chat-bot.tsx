@@ -5,10 +5,9 @@ import type React from "react"
 import { useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
-import { MessageCircle, X, Send, Bot, User, Minimize2 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { MessageCircleIcon, XIcon, SendIcon, BotIcon, UserIcon, MinimizeIcon } from "@/components/icons"
 
 interface Message {
   id: string
@@ -161,29 +160,28 @@ export function ChatBot() {
         className="fixed bottom-6 right-6 h-14 w-14 rounded-full shadow-xl z-[9999] bg-primary hover:bg-primary/90 text-primary-foreground border-4 border-background"
         size="icon"
       >
-        <MessageCircle className="h-6 w-6" />
+        <MessageCircleIcon className="h-6 w-6" />
         <span className="sr-only">Open chat</span>
       </Button>
     )
   }
 
   return (
-    <Card
+    <div
       className={cn(
-        "fixed bottom-6 right-6 z-[9999] shadow-2xl transition-all duration-300 border-2 border-border bg-card",
+        "fixed bottom-6 right-6 z-[9999] shadow-2xl transition-all duration-300 rounded-xl overflow-hidden bg-card",
         isMinimized ? "w-72 h-14" : "w-[380px] h-[500px]",
       )}
     >
-      {/* Header */}
-      <CardHeader className="flex flex-row items-center justify-between p-4 bg-primary text-primary-foreground rounded-t-lg">
+      <div className="flex flex-row items-center justify-between p-4 bg-primary text-primary-foreground">
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8 border-2 border-primary-foreground/20">
             <AvatarFallback className="bg-primary-foreground text-primary">
-              <Bot className="h-4 w-4" />
+              <BotIcon className="h-4 w-4" />
             </AvatarFallback>
           </Avatar>
           <div>
-            <CardTitle className="text-sm font-medium">SAMOP Assistant</CardTitle>
+            <h3 className="text-sm font-medium">SAMOP Assistant</h3>
             {!isMinimized && <p className="text-xs text-primary-foreground/70">Online | Typically replies instantly</p>}
           </div>
         </div>
@@ -194,7 +192,7 @@ export function ChatBot() {
             className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10"
             onClick={() => setIsMinimized(!isMinimized)}
           >
-            <Minimize2 className="h-4 w-4" />
+            <MinimizeIcon className="h-4 w-4" />
           </Button>
           <Button
             variant="ghost"
@@ -202,15 +200,15 @@ export function ChatBot() {
             className="h-8 w-8 text-primary-foreground hover:bg-primary-foreground/10"
             onClick={() => setIsOpen(false)}
           >
-            <X className="h-4 w-4" />
+            <XIcon className="h-4 w-4" />
           </Button>
         </div>
-      </CardHeader>
+      </div>
 
       {!isMinimized && (
         <>
           {/* Messages */}
-          <CardContent className="flex-1 overflow-y-auto p-4 h-[360px] bg-card">
+          <div className="flex-1 overflow-y-auto p-4 h-[360px] bg-muted/30">
             <div className="space-y-4">
               {messages.map((message) => (
                 <div
@@ -225,7 +223,7 @@ export function ChatBot() {
                           : "bg-primary text-primary-foreground",
                       )}
                     >
-                      {message.sender === "user" ? <User className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+                      {message.sender === "user" ? <UserIcon className="h-4 w-4" /> : <BotIcon className="h-4 w-4" />}
                     </AvatarFallback>
                   </Avatar>
                   <div
@@ -233,7 +231,7 @@ export function ChatBot() {
                       "max-w-[75%] rounded-2xl px-4 py-2",
                       message.sender === "user"
                         ? "bg-primary text-primary-foreground rounded-br-sm"
-                        : "bg-muted text-foreground rounded-bl-sm",
+                        : "bg-card text-foreground rounded-bl-sm shadow-sm",
                     )}
                   >
                     <p className="text-sm leading-relaxed">{message.content}</p>
@@ -256,10 +254,10 @@ export function ChatBot() {
                 <div className="flex items-end gap-2">
                   <Avatar className="h-8 w-8">
                     <AvatarFallback className="bg-primary text-primary-foreground">
-                      <Bot className="h-4 w-4" />
+                      <BotIcon className="h-4 w-4" />
                     </AvatarFallback>
                   </Avatar>
-                  <div className="bg-muted rounded-2xl rounded-bl-sm px-4 py-3">
+                  <div className="bg-card rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm">
                     <div className="flex gap-1">
                       <span className="h-2 w-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:-0.3s]" />
                       <span className="h-2 w-2 rounded-full bg-muted-foreground/40 animate-bounce [animation-delay:-0.15s]" />
@@ -270,10 +268,10 @@ export function ChatBot() {
               )}
               <div ref={messagesEndRef} />
             </div>
-          </CardContent>
+          </div>
 
           {/* Input */}
-          <div className="p-4 border-t border-border bg-card rounded-b-lg">
+          <div className="p-4 border-t border-border bg-card">
             <div className="flex items-center gap-2">
               <Input
                 placeholder="Type your message..."
@@ -288,13 +286,13 @@ export function ChatBot() {
                 className="bg-primary text-primary-foreground hover:bg-primary/90"
                 disabled={!inputValue.trim() || isTyping}
               >
-                <Send className="h-4 w-4" />
+                <SendIcon className="h-4 w-4" />
               </Button>
             </div>
             <p className="text-[10px] text-muted-foreground text-center mt-2">Powered by SAMOP Consulting</p>
           </div>
         </>
       )}
-    </Card>
+    </div>
   )
 }
