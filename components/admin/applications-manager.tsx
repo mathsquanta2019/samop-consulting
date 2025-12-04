@@ -64,6 +64,7 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
   const [emailSubject, setEmailSubject] = useState("")
   const [emailBody, setEmailBody] = useState("")
   const [emailApp, setEmailApp] = useState<Application | null>(null)
+  const [emailSuccess, setEmailSuccess] = useState(false)
 
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false)
   const [meetingApp, setMeetingApp] = useState<Application | null>(null)
@@ -73,6 +74,7 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
   const [meetingDuration, setMeetingDuration] = useState("60")
   const [meetingNotes, setMeetingNotes] = useState("")
   const [availableSlots, setAvailableSlots] = useState<string[]>([])
+  const [meetingSuccess, setMeetingSuccess] = useState(false)
 
   const handleUpdateStatus = async () => {
     if (!selectedApp || !newStatus) return
@@ -104,16 +106,21 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
     })
 
     if (result.success) {
-      setEmailDialogOpen(false)
-      setEmailSubject("")
-      setEmailBody("")
-      setEmailApp(null)
+      setEmailSuccess(true)
+      setTimeout(() => {
+        setEmailDialogOpen(false)
+        setEmailSubject("")
+        setEmailBody("")
+        setEmailApp(null)
+        setEmailSuccess(false)
+      }, 2000)
     }
     setIsSubmitting(false)
   }
 
   const handleDateChange = async (date: string) => {
     setMeetingDate(date)
+    setMeetingTime("") // Reset time when date changes
     if (date) {
       const result = await getAvailableSlots(date)
       if (result.success && result.data) {
@@ -139,11 +146,15 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
     })
 
     if (result.success) {
-      setMeetingDialogOpen(false)
-      setMeetingApp(null)
-      setMeetingDate("")
-      setMeetingTime("")
-      setMeetingNotes("")
+      setMeetingSuccess(true)
+      setTimeout(() => {
+        setMeetingDialogOpen(false)
+        setMeetingApp(null)
+        setMeetingDate("")
+        setMeetingTime("")
+        setMeetingNotes("")
+        setMeetingSuccess(false)
+      }, 2000)
     }
     setIsSubmitting(false)
   }
@@ -159,7 +170,7 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
       case "review":
         return apps.filter((a) => a.status === "under_review" || a.status === "submitted")
       case "completed":
-        return apps.filter((a) => a.status === "approved" || a.status === "completed" || a.status === "rejected")
+        return apps.filter((a) => a.status === "approved" || a.status === "completed" || a.status === "rejected").length
       default:
         return apps
     }
@@ -307,6 +318,11 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
   ]
 
   const filteredApplications = filterApplicationsByTab(applications, activeTab)
+
+  const getTodayDate = () => {
+    const today = new Date()
+    return today.toISOString().split("T")[0]
+  }
 
   return (
     <div className="space-y-6">
@@ -496,143 +512,176 @@ export function ApplicationsManager({ applications }: ApplicationsManagerProps) 
         </DialogContent>
       </Dialog>
 
+      {/* Email Dialog */}
       <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
         <DialogContent className="bg-card max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-card-foreground">Email Client</DialogTitle>
-            <DialogDescription>Send an email regarding their application</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label>Subject</Label>
-              <Input
-                value={emailSubject}
-                onChange={(e) => setEmailSubject(e.target.value)}
-                placeholder="Email subject"
-              />
+          {emailSuccess ? (
+            <div className="py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
+              </div>
+              <DialogHeader>
+                <DialogTitle className="text-center text-card-foreground">Email Sent Successfully!</DialogTitle>
+                <DialogDescription className="text-center mt-2">
+                  Your email has been sent to the client.
+                </DialogDescription>
+              </DialogHeader>
             </div>
-            <div className="space-y-2">
-              <Label>Message</Label>
-              <Textarea
-                value={emailBody}
-                onChange={(e) => setEmailBody(e.target.value)}
-                placeholder="Write your message to the client..."
-                rows={6}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setEmailDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSendEmail}
-                className="flex-1 bg-primary text-primary-foreground"
-                disabled={!emailSubject || !emailBody || isSubmitting}
-              >
-                <SendIcon className="mr-2 h-4 w-4" />
-                {isSubmitting ? "Sending..." : "Send Email"}
-              </Button>
-            </div>
-          </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Email Client</DialogTitle>
+                <DialogDescription>Send an email to the client about their application.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Subject</Label>
+                  <Input
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    placeholder="Email subject..."
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Message</Label>
+                  <Textarea
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    placeholder="Write your message..."
+                    rows={6}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setEmailDialogOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSendEmail}
+                    className="flex-1 bg-primary text-primary-foreground"
+                    disabled={!emailSubject || !emailBody || isSubmitting}
+                  >
+                    <SendIcon className="mr-2 h-4 w-4" />
+                    {isSubmitting ? "Sending..." : "Send Email"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
 
+      {/* Meeting Dialog */}
       <Dialog open={meetingDialogOpen} onOpenChange={setMeetingDialogOpen}>
         <DialogContent className="bg-card max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="text-card-foreground">Schedule Meeting</DialogTitle>
-            <DialogDescription>Schedule a meeting with the client</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Meeting Type</Label>
-                <Select value={meetingType} onValueChange={(v) => setMeetingType(v as AppointmentType)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="consultation">Consultation</SelectItem>
-                    <SelectItem value="document_review">Document Review</SelectItem>
-                    <SelectItem value="interview_prep">Interview Prep</SelectItem>
-                    <SelectItem value="visa_guidance">Visa Guidance</SelectItem>
-                  </SelectContent>
-                </Select>
+          {meetingSuccess ? (
+            <div className="py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
               </div>
-              <div className="space-y-2">
-                <Label>Duration</Label>
-                <Select value={meetingDuration} onValueChange={setMeetingDuration}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="30">30 minutes</SelectItem>
-                    <SelectItem value="60">60 minutes</SelectItem>
-                    <SelectItem value="90">90 minutes</SelectItem>
-                  </SelectContent>
-                </Select>
+              <DialogHeader>
+                <DialogTitle className="text-center text-card-foreground">Meeting Scheduled!</DialogTitle>
+                <DialogDescription className="text-center mt-2">
+                  The meeting has been scheduled for {meetingDate} at {meetingTime}.
+                  <br />A notification has been sent to the client.
+                </DialogDescription>
+              </DialogHeader>
+            </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Schedule Meeting</DialogTitle>
+                <DialogDescription>Schedule a meeting with the client.</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Meeting Type</Label>
+                  <Select value={meetingType} onValueChange={(v) => setMeetingType(v as AppointmentType)}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="consultation">Consultation</SelectItem>
+                      <SelectItem value="document_review">Document Review</SelectItem>
+                      <SelectItem value="interview_prep">Interview Prep</SelectItem>
+                      <SelectItem value="visa_guidance">Visa Guidance</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Date</Label>
+                    <Input
+                      type="date"
+                      value={meetingDate}
+                      onChange={(e) => handleDateChange(e.target.value)}
+                      min={getTodayDate()}
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Time</Label>
+                    <Select value={meetingTime} onValueChange={setMeetingTime} disabled={!meetingDate}>
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder={meetingDate ? "Select time" : "Select date first"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableSlots.length > 0 ? (
+                          availableSlots.map((slot) => (
+                            <SelectItem key={slot} value={slot}>
+                              {slot}
+                            </SelectItem>
+                          ))
+                        ) : (
+                          <SelectItem value="" disabled>
+                            No slots available
+                          </SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Duration</Label>
+                  <Select value={meetingDuration} onValueChange={setMeetingDuration}>
+                    <SelectTrigger className="bg-background">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="30">30 minutes</SelectItem>
+                      <SelectItem value="60">60 minutes</SelectItem>
+                      <SelectItem value="90">90 minutes</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Notes (Optional)</Label>
+                  <Textarea
+                    value={meetingNotes}
+                    onChange={(e) => setMeetingNotes(e.target.value)}
+                    placeholder="Meeting agenda or notes..."
+                    rows={3}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 bg-transparent"
+                    onClick={() => setMeetingDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleScheduleMeeting}
+                    className="flex-1 bg-primary text-primary-foreground"
+                    disabled={!meetingDate || !meetingTime || isSubmitting}
+                  >
+                    <CalendarIcon className="mr-2 h-4 w-4" />
+                    {isSubmitting ? "Scheduling..." : "Schedule Meeting"}
+                  </Button>
+                </div>
               </div>
-            </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Date</Label>
-                <Input
-                  type="date"
-                  value={meetingDate}
-                  onChange={(e) => handleDateChange(e.target.value)}
-                  min={new Date().toISOString().split("T")[0]}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>Time</Label>
-                <Select value={meetingTime} onValueChange={setMeetingTime} disabled={!meetingDate}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select time" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableSlots.length > 0 ? (
-                      availableSlots.map((slot) => (
-                        <SelectItem key={slot} value={slot}>
-                          {slot}
-                        </SelectItem>
-                      ))
-                    ) : (
-                      <>
-                        <SelectItem value="09:00">09:00 AM</SelectItem>
-                        <SelectItem value="10:00">10:00 AM</SelectItem>
-                        <SelectItem value="11:00">11:00 AM</SelectItem>
-                        <SelectItem value="14:00">02:00 PM</SelectItem>
-                        <SelectItem value="15:00">03:00 PM</SelectItem>
-                        <SelectItem value="16:00">04:00 PM</SelectItem>
-                      </>
-                    )}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Notes</Label>
-              <Textarea
-                value={meetingNotes}
-                onChange={(e) => setMeetingNotes(e.target.value)}
-                placeholder="Add meeting notes or agenda..."
-                rows={3}
-              />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setMeetingDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={handleScheduleMeeting}
-                className="flex-1 bg-primary text-primary-foreground"
-                disabled={!meetingDate || !meetingTime || isSubmitting}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {isSubmitting ? "Scheduling..." : "Schedule Meeting"}
-              </Button>
-            </div>
-          </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
     </div>

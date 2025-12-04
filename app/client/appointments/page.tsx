@@ -8,8 +8,8 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { CalendarIcon, ClockIcon, VideoIcon, AlertCircleIcon } from "@/components/icons"
-import Link from "next/link"
+import { CalendarIcon, ClockIcon, VideoIcon, AlertCircleIcon, CheckCircleIcon } from "@/components/icons"
+import { BookingModal } from "@/components/booking-modal"
 import { cancelAppointment } from "@/lib/api"
 import type { Appointment } from "@/lib/types"
 
@@ -21,6 +21,8 @@ export default function ClientAppointmentsPage() {
   const [cancelReason, setCancelReason] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [refundInfo, setRefundInfo] = useState<{ amount: number; percentage: number; message: string } | null>(null)
+  const [bookingModalOpen, setBookingModalOpen] = useState(false)
+  const [cancelSuccess, setCancelSuccess] = useState(false)
 
   if (!profile) return null
 
@@ -45,7 +47,7 @@ export default function ClientAppointmentsPage() {
     if (hoursUntilAppointment > 48) {
       percentage = 100
       message = "Full refund - Cancelling more than 48 hours in advance."
-    } else if (hoursUntilAppointment > 24) {
+    } else if (hoursUntilAppointment >= 24) {
       percentage = 50
       message = "50% refund - Cancelling between 24-48 hours in advance."
     } else {
@@ -69,10 +71,14 @@ export default function ClientAppointmentsPage() {
 
     if (result.success) {
       setAppointments((prev) => prev.map((apt) => (apt.id === selectedApt.id ? { ...apt, status: "cancelled" } : apt)))
-      setCancelDialogOpen(false)
-      setSelectedApt(null)
-      setCancelReason("")
-      setRefundInfo(null)
+      setCancelSuccess(true)
+      setTimeout(() => {
+        setCancelDialogOpen(false)
+        setSelectedApt(null)
+        setCancelReason("")
+        setRefundInfo(null)
+        setCancelSuccess(false)
+      }, 2000)
     }
     setIsSubmitting(false)
   }
@@ -84,8 +90,8 @@ export default function ClientAppointmentsPage() {
           <h1 className="text-2xl font-bold text-foreground">Appointments</h1>
           <p className="text-muted-foreground">View and manage your scheduled appointments.</p>
         </div>
-        <Button asChild className="bg-primary text-primary-foreground">
-          <Link href="/#book">Book New Appointment</Link>
+        <Button onClick={() => setBookingModalOpen(true)} className="bg-primary text-primary-foreground">
+          Book New Appointment
         </Button>
       </div>
 
@@ -117,9 +123,7 @@ export default function ClientAppointmentsPage() {
             <CalendarIcon className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-medium text-card-foreground mb-2">No Appointments</h3>
             <p className="text-muted-foreground mb-4">You don't have any scheduled appointments.</p>
-            <Button asChild>
-              <Link href="/#book">Book Consultation</Link>
-            </Button>
+            <Button onClick={() => setBookingModalOpen(true)}>Book Consultation</Button>
           </CardContent>
         </Card>
       ) : (
@@ -178,54 +182,79 @@ export default function ClientAppointmentsPage() {
         </div>
       )}
 
+      {/* Cancel Dialog */}
       <Dialog open={cancelDialogOpen} onOpenChange={setCancelDialogOpen}>
         <DialogContent className="bg-card">
-          <DialogHeader>
-            <DialogTitle className="text-card-foreground">Cancel Appointment</DialogTitle>
-            <DialogDescription>Are you sure you want to cancel this appointment?</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {refundInfo && (
-              <div
-                className={`p-4 rounded-lg ${refundInfo.percentage === 100 ? "bg-green-50 border-green-200" : refundInfo.percentage === 50 ? "bg-yellow-50 border-yellow-200" : "bg-red-50 border-red-200"} border`}
-              >
-                <p
-                  className={`font-medium ${refundInfo.percentage === 100 ? "text-green-800" : refundInfo.percentage === 50 ? "text-yellow-800" : "text-red-800"}`}
-                >
-                  Refund: ${refundInfo.amount.toFixed(2)} ({refundInfo.percentage}%)
-                </p>
-                <p
-                  className={`text-sm mt-1 ${refundInfo.percentage === 100 ? "text-green-700" : refundInfo.percentage === 50 ? "text-yellow-700" : "text-red-700"}`}
-                >
-                  {refundInfo.message}
-                </p>
+          {cancelSuccess ? (
+            <div className="py-8 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-green-100 mx-auto mb-4">
+                <CheckCircleIcon className="h-8 w-8 text-green-600" />
               </div>
-            )}
-            <div className="space-y-2">
-              <Label>Reason for Cancellation (Optional)</Label>
-              <Textarea
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                placeholder="Let us know why you're cancelling..."
-                rows={3}
-              />
+              <DialogHeader>
+                <DialogTitle className="text-center text-card-foreground">Appointment Cancelled</DialogTitle>
+                <DialogDescription className="text-center mt-2">
+                  {refundInfo && refundInfo.percentage > 0
+                    ? `A refund of $${refundInfo.amount.toFixed(2)} will be processed within 5-7 business days.`
+                    : "Your appointment has been cancelled."}
+                </DialogDescription>
+              </DialogHeader>
             </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setCancelDialogOpen(false)}>
-                Keep Appointment
-              </Button>
-              <Button
-                onClick={handleCancelAppointment}
-                variant="destructive"
-                className="flex-1"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? "Cancelling..." : "Cancel Appointment"}
-              </Button>
-            </div>
-          </div>
+          ) : (
+            <>
+              <DialogHeader>
+                <DialogTitle className="text-card-foreground">Cancel Appointment</DialogTitle>
+                <DialogDescription>Are you sure you want to cancel this appointment?</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                {refundInfo && (
+                  <div
+                    className={`p-4 rounded-lg ${refundInfo.percentage === 100 ? "bg-green-50 border-green-200" : refundInfo.percentage === 50 ? "bg-yellow-50 border-yellow-200" : "bg-red-50 border-red-200"} border`}
+                  >
+                    <p
+                      className={`font-medium ${refundInfo.percentage === 100 ? "text-green-800" : refundInfo.percentage === 50 ? "text-yellow-800" : "text-red-800"}`}
+                    >
+                      Refund: ${refundInfo.amount.toFixed(2)} ({refundInfo.percentage}%)
+                    </p>
+                    <p
+                      className={`text-sm mt-1 ${refundInfo.percentage === 100 ? "text-green-700" : refundInfo.percentage === 50 ? "text-yellow-700" : "text-red-700"}`}
+                    >
+                      {refundInfo.message}
+                    </p>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Label>Reason for Cancellation (Optional)</Label>
+                  <Textarea
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    placeholder="Let us know why you're cancelling..."
+                    rows={3}
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1 bg-transparent"
+                    onClick={() => setCancelDialogOpen(false)}
+                  >
+                    Keep Appointment
+                  </Button>
+                  <Button
+                    onClick={handleCancelAppointment}
+                    variant="destructive"
+                    className="flex-1"
+                    disabled={isSubmitting}
+                  >
+                    {isSubmitting ? "Cancelling..." : "Cancel Appointment"}
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
+
+      <BookingModal open={bookingModalOpen} onOpenChange={setBookingModalOpen} />
     </div>
   )
 }

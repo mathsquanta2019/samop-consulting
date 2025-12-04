@@ -26,7 +26,7 @@ import {
   XCircleIcon,
 } from "@/components/icons"
 import Link from "next/link"
-import type { ApplicationFormData, DocumentType } from "@/lib/types"
+import type { ApplicationFormData, DocumentType, AppointmentType } from "@/lib/types"
 import {
   getApplicationFormById,
   reviewApplicationForm,
@@ -34,6 +34,7 @@ import {
   requestDocuments,
   sendEmailToClient,
   adminCreateAppointment,
+  getAvailableSlots,
 } from "@/lib/api"
 
 const statusColors: Record<string, string> = {
@@ -45,6 +46,16 @@ const statusColors: Record<string, string> = {
 }
 
 type ReviewAction = "approve" | "reject" | "request_revision" | "request_documents" | "request_info"
+
+interface ReviewHistoryItem {
+  id: string
+  action: string
+  status: string
+  comments: string
+  reviewedBy: string
+  reviewedAt: string
+  details?: string[]
+}
 
 export default function ApplicationReviewPage() {
   const searchParams = useSearchParams()
@@ -77,6 +88,13 @@ export default function ApplicationReviewPage() {
   const [meetingTime, setMeetingTime] = useState("")
   const [meetingNotes, setMeetingNotes] = useState("")
 
+  const [reviewHistory, setReviewHistory] = useState<ReviewHistoryItem[]>([])
+
+  const [actionSuccess, setActionSuccess] = useState<string | null>(null)
+
+  const [availableSlots, setAvailableSlots] = useState<string[]>([])
+  const [meetingType, setMeetingType] = useState<AppointmentType>("consultation")
+
   const availableFields = [
     "Work Experience Details",
     "Education History Clarification",
@@ -106,6 +124,22 @@ export default function ApplicationReviewPage() {
     }
   }, [formId])
 
+  const getTodayDate = () => {
+    const today = new Date()
+    return today.toISOString().split("T")[0]
+  }
+
+  const handleMeetingDateChange = async (date: string) => {
+    setMeetingDate(date)
+    setMeetingTime("")
+    if (date) {
+      const result = await getAvailableSlots(date)
+      if (result.success && result.data) {
+        setAvailableSlots(result.data.map((slot) => slot.time))
+      }
+    }
+  }
+
   const loadForm = async (id: string) => {
     setIsLoading(true)
     const result = await getApplicationFormById(id)
@@ -118,73 +152,112 @@ export default function ApplicationReviewPage() {
     setIsLoading(false)
   }
 
-  const handleSubmitReview = async () => {
-    if (!form?.id) return
-    setIsSubmitting(true)
-
-    const statusMap = {
-      approve: "approved" as const,
-      reject: "rejected" as const,
-      request_revision: "needs_revision" as const,
-      request_documents: "needs_revision" as const,
-      request_info: "needs_revision" as const,
+  // Initialize review history from existing reviews
+  useEffect(() => {
+    if (form?.adminReview) {
+      setReviewHistory([
+        {
+          id: "1",
+          action: "review",
+          status: form.adminReview.status,
+          comments: form.adminReview.comments,
+          reviewedBy: form.adminReview.reviewedBy,
+          reviewedAt: form.adminReview.reviewedAt,
+        },
+      ])
     }
+  }, [form])
+
+  const addToHistory = (item: Omit<ReviewHistoryItem, "id" | "reviewedAt" | "reviewedBy">) => {
+    const newItem: ReviewHistoryItem = {
+      ...item,
+      id: Date.now().toString(),
+      reviewedBy: "Admin User",
+      reviewedAt: new Date().toISOString(),
+    }
+    setReviewHistory((prev) => [newItem, ...prev])
+  }
+
+  const handleReviewSubmit = async () => {
+    if (!form) return
+
+    setIsSubmitting(true)
+    const newStatus = reviewAction === "approve" ? "approved" : reviewAction === "reject" ? "rejected" : "under_review"
 
     const result = await reviewApplicationForm(form.id, {
-      action: reviewAction,
-      status: statusMap[reviewAction],
+      status: newStatus,
       comments: reviewComments,
       reviewedBy: "Admin User",
     })
 
-    if (result.success && result.data) {
-      setForm(result.data)
+    if (result.success) {
+      addToHistory({
+        action: reviewAction,
+        status: newStatus,
+        comments: reviewComments,
+      })
+      setActionSuccess(
+        reviewAction === "approve"
+          ? "Application Approved!"
+          : reviewAction === "reject"
+            ? "Application Rejected"
+            : "Revision Requested",
+      )
+      setReviewComments("")
+
+      setTimeout(() => setActionSuccess(null), 3000)
     }
     setIsSubmitting(false)
   }
 
   const handleRequestInfo = async () => {
-    if (!form?.id || requestedFields.length === 0) return
-    setIsSubmitting(true)
+    if (!form || requestedFields.length === 0) return
 
-    const result = await requestMoreInformation(form.id, {
-      requestedFields,
-      comments: infoComments,
-      requestedBy: "Admin User",
-    })
+    setIsSubmitting(true)
+    const result = await requestMoreInformation(form.id, requestedFields, infoComments)
 
     if (result.success) {
+      addToHistory({
+        action: "request_info",
+        status: "under_review",
+        comments: infoComments,
+        details: requestedFields,
+      })
       setInfoDialogOpen(false)
       setRequestedFields([])
       setInfoComments("")
-      if (result.data) setForm(result.data)
+      setActionSuccess("Information request sent to client!")
+      setTimeout(() => setActionSuccess(null), 3000)
     }
     setIsSubmitting(false)
   }
 
   const handleRequestDocuments = async () => {
-    if (!form?.id || requestedDocs.length === 0) return
-    setIsSubmitting(true)
+    if (!form || requestedDocs.length === 0) return
 
-    const result = await requestDocuments(form.id, {
-      documentTypes: requestedDocs,
-      comments: docsComments,
-      requestedBy: "Admin User",
-    })
+    setIsSubmitting(true)
+    const result = await requestDocuments(form.id, requestedDocs, docsComments)
 
     if (result.success) {
+      addToHistory({
+        action: "request_documents",
+        status: "under_review",
+        comments: docsComments,
+        details: requestedDocs,
+      })
       setDocsDialogOpen(false)
       setRequestedDocs([])
       setDocsComments("")
-      if (result.data) setForm(result.data)
+      setActionSuccess("Document request sent to client!")
+      setTimeout(() => setActionSuccess(null), 3000)
     }
     setIsSubmitting(false)
   }
 
   const handleSendEmail = async () => {
-    if (!form?.clientId || !emailSubject || !emailBody) return
-    setIsSubmitting(true)
+    if (!form || !emailSubject || !emailBody) return
 
+    setIsSubmitting(true)
     const result = await sendEmailToClient({
       clientId: form.clientId,
       subject: emailSubject,
@@ -193,23 +266,30 @@ export default function ApplicationReviewPage() {
     })
 
     if (result.success) {
+      addToHistory({
+        action: "email_sent",
+        status: form.status,
+        comments: `Subject: ${emailSubject}`,
+      })
       setEmailDialogOpen(false)
       setEmailSubject("")
       setEmailBody("")
+      setActionSuccess("Email sent to client!")
+      setTimeout(() => setActionSuccess(null), 3000)
     }
     setIsSubmitting(false)
   }
 
   const handleScheduleMeeting = async () => {
-    if (!form?.clientId || !meetingDate || !meetingTime) return
-    setIsSubmitting(true)
+    if (!form || !meetingDate || !meetingTime) return
 
+    setIsSubmitting(true)
     const result = await adminCreateAppointment({
       clientId: form.clientId,
       clientName: `${form.personalInfo.firstName} ${form.personalInfo.lastName}`,
       clientEmail: form.personalInfo.email,
       clientPhone: form.personalInfo.phone,
-      type: "consultation",
+      type: meetingType,
       date: meetingDate,
       time: meetingTime,
       duration: 60,
@@ -217,10 +297,17 @@ export default function ApplicationReviewPage() {
     })
 
     if (result.success) {
+      addToHistory({
+        action: "meeting_scheduled",
+        status: form.status,
+        comments: `Meeting scheduled for ${meetingDate} at ${meetingTime}`,
+      })
       setMeetingDialogOpen(false)
       setMeetingDate("")
       setMeetingTime("")
       setMeetingNotes("")
+      setActionSuccess("Meeting scheduled successfully!")
+      setTimeout(() => setActionSuccess(null), 3000)
     }
     setIsSubmitting(false)
   }
@@ -252,6 +339,13 @@ export default function ApplicationReviewPage() {
 
   return (
     <div className="space-y-6">
+      {actionSuccess && (
+        <div className="fixed top-4 right-4 z-50 bg-green-100 border border-green-300 text-green-800 px-6 py-3 rounded-lg shadow-lg flex items-center gap-3 animate-in slide-in-from-top-2">
+          <CheckCircleIcon className="h-5 w-5 text-green-600" />
+          <span className="font-medium">{actionSuccess}</span>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -591,7 +685,7 @@ export default function ApplicationReviewPage() {
               </div>
 
               <Button
-                onClick={handleSubmitReview}
+                onClick={handleReviewSubmit}
                 disabled={isSubmitting || !reviewComments}
                 className="w-full bg-primary text-primary-foreground"
               >
@@ -674,6 +768,99 @@ export default function ApplicationReviewPage() {
               </CardContent>
             </Card>
           )}
+
+          <Card className="bg-card">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg flex items-center gap-2">
+                <ClockIcon className="h-5 w-5 text-muted-foreground" />
+                Activity Timeline
+              </CardTitle>
+              <CardDescription>Complete history of actions taken</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {reviewHistory.length === 0 ? (
+                <div className="text-center py-6 text-muted-foreground">
+                  <ClockIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">No activity yet</p>
+                </div>
+              ) : (
+                <div className="relative">
+                  {/* Timeline line */}
+                  <div className="absolute left-3 top-2 bottom-2 w-0.5 bg-border" />
+
+                  <div className="space-y-4">
+                    {reviewHistory.map((item, index) => (
+                      <div key={item.id} className="relative pl-8">
+                        {/* Timeline dot */}
+                        <div
+                          className={`absolute left-0 top-1 h-6 w-6 rounded-full flex items-center justify-center ${
+                            item.action === "approve"
+                              ? "bg-green-100"
+                              : item.action === "reject"
+                                ? "bg-red-100"
+                                : item.action === "email_sent"
+                                  ? "bg-blue-100"
+                                  : item.action === "meeting_scheduled"
+                                    ? "bg-purple-100"
+                                    : "bg-yellow-100"
+                          }`}
+                        >
+                          {item.action === "approve" && <CheckCircleIcon className="h-3.5 w-3.5 text-green-600" />}
+                          {item.action === "reject" && <XCircleIcon className="h-3.5 w-3.5 text-red-600" />}
+                          {item.action === "request_info" && (
+                            <MessageSquareIcon className="h-3.5 w-3.5 text-yellow-600" />
+                          )}
+                          {item.action === "request_documents" && (
+                            <FileTextIcon className="h-3.5 w-3.5 text-yellow-600" />
+                          )}
+                          {item.action === "email_sent" && <MailIcon className="h-3.5 w-3.5 text-blue-600" />}
+                          {item.action === "meeting_scheduled" && (
+                            <CalendarIcon className="h-3.5 w-3.5 text-purple-600" />
+                          )}
+                          {item.action === "review" && <ClockIcon className="h-3.5 w-3.5 text-yellow-600" />}
+                        </div>
+
+                        <div className="bg-muted/30 rounded-lg p-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-medium text-sm capitalize">{item.action.replace(/_/g, " ")}</span>
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${
+                                item.status === "approved"
+                                  ? "border-green-300 text-green-700"
+                                  : item.status === "rejected"
+                                    ? "border-red-300 text-red-700"
+                                    : "border-yellow-300 text-yellow-700"
+                              }`}
+                            >
+                              {item.status.replace(/_/g, " ")}
+                            </Badge>
+                          </div>
+
+                          {item.comments && <p className="text-sm text-muted-foreground mb-2">{item.comments}</p>}
+
+                          {item.details && item.details.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mb-2">
+                              {item.details.map((detail, i) => (
+                                <Badge key={i} variant="secondary" className="text-xs">
+                                  {detail}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex items-center justify-between text-xs text-muted-foreground">
+                            <span>{item.reviewedBy}</span>
+                            <span>{new Date(item.reviewedAt).toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </div>
       </div>
 
@@ -829,27 +1016,62 @@ export default function ApplicationReviewPage() {
         <DialogContent className="bg-card max-w-lg">
           <DialogHeader>
             <DialogTitle className="text-card-foreground">Schedule Meeting</DialogTitle>
-            <DialogDescription>
-              Schedule a meeting with {form.personalInfo.firstName} {form.personalInfo.lastName}
-            </DialogDescription>
+            <DialogDescription>Schedule a meeting with the client to discuss their application.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Meeting Type</Label>
+              <Select value={meetingType} onValueChange={(v) => setMeetingType(v as AppointmentType)}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="consultation">Consultation</SelectItem>
+                  <SelectItem value="document_review">Document Review</SelectItem>
+                  <SelectItem value="interview_prep">Interview Prep</SelectItem>
+                  <SelectItem value="visa_guidance">Visa Guidance</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Date</Label>
-                <Input type="date" value={meetingDate} onChange={(e) => setMeetingDate(e.target.value)} />
+                <Input
+                  type="date"
+                  value={meetingDate}
+                  onChange={(e) => handleMeetingDateChange(e.target.value)}
+                  min={getTodayDate()}
+                  className="bg-background"
+                />
               </div>
               <div className="space-y-2">
                 <Label>Time</Label>
-                <Input type="time" value={meetingTime} onChange={(e) => setMeetingTime(e.target.value)} />
+                <Select value={meetingTime} onValueChange={setMeetingTime} disabled={!meetingDate}>
+                  <SelectTrigger className="bg-background">
+                    <SelectValue placeholder={meetingDate ? "Select time" : "Select date first"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSlots.length > 0 ? (
+                      availableSlots.map((slot) => (
+                        <SelectItem key={slot} value={slot}>
+                          {slot}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>
+                        No slots available
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="space-y-2">
-              <Label>Notes</Label>
+              <Label>Meeting Notes (Optional)</Label>
               <Textarea
                 value={meetingNotes}
                 onChange={(e) => setMeetingNotes(e.target.value)}
-                placeholder="Meeting agenda or notes..."
+                placeholder="Agenda or notes for the meeting..."
                 rows={3}
               />
             </div>
@@ -862,6 +1084,7 @@ export default function ApplicationReviewPage() {
                 className="flex-1 bg-primary text-primary-foreground"
                 disabled={!meetingDate || !meetingTime || isSubmitting}
               >
+                <CalendarIcon className="mr-2 h-4 w-4" />
                 {isSubmitting ? "Scheduling..." : "Schedule Meeting"}
               </Button>
             </div>
