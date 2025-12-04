@@ -91,6 +91,7 @@ export interface Document {
   type: DocumentType
   name: string
   url: string
+  fileUrl?: string // Added fileUrl for preview/download
   status: DocumentStatus
   feedback?: string
   adminNotes?: string

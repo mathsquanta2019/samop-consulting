@@ -407,22 +407,51 @@ export async function sendEmailToClient(data: {
   }
 }
 
-export async function viewDocument(documentId: string): Promise<ApiResponse<Document>> {
-  await delay(300)
-  const document = mockDocuments.find((doc) => doc.id === documentId)
-  if (document) {
-    return { success: true, data: document }
+export async function viewDocument(docId: string): Promise<ApiResponse<Document & { previewUrl: string }>> {
+  await delay(200)
+  const doc = mockDocuments.find((d) => d.id === docId)
+  if (!doc) {
+    return { success: false, message: "Document not found" }
   }
-  return { success: false, error: "Document not found" }
+  // Generate a preview URL (in production, this would be a signed URL or blob URL)
+  const previewUrl = doc.fileUrl || `/api/documents/${docId}/preview`
+  return { success: true, data: { ...doc, previewUrl } }
 }
 
-export async function downloadDocument(documentId: string): Promise<ApiResponse<{ downloadUrl: string }>> {
-  await delay(300)
-  const document = mockDocuments.find((doc) => doc.id === documentId)
-  if (document) {
-    return { success: true, data: { downloadUrl: document.url }, message: "Download ready" }
+export async function downloadDocument(docId: string): Promise<ApiResponse<{ downloadUrl: string; fileName: string }>> {
+  await delay(200)
+  const doc = mockDocuments.find((d) => d.id === docId)
+  if (!doc) {
+    return { success: false, message: "Document not found" }
   }
-  return { success: false, error: "Document not found" }
+  // Generate a download URL (in production, this would be a signed URL)
+  const downloadUrl = doc.fileUrl || `/api/documents/${docId}/download`
+  return { success: true, data: { downloadUrl, fileName: doc.name } }
+}
+
+export async function reuploadDocument(data: {
+  documentId: string
+  clientId: string
+  file: File
+}): Promise<ApiResponse<Document>> {
+  await delay(800)
+  const docIndex = mockDocuments.findIndex((d) => d.id === data.documentId)
+  if (docIndex === -1) {
+    return { success: false, message: "Document not found" }
+  }
+
+  const updatedDoc: Document = {
+    ...mockDocuments[docIndex],
+    name: data.file.name,
+    url: `/documents/${data.file.name}`,
+    status: "pending",
+    uploadedAt: new Date().toISOString(),
+    feedback: undefined,
+    adminNotes: undefined,
+    reviewedAt: undefined,
+  }
+  mockDocuments[docIndex] = updatedDoc
+  return { success: true, data: updatedDoc, message: "Document re-uploaded successfully!" }
 }
 
 // ==========================================

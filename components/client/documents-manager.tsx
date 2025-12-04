@@ -29,7 +29,7 @@ import {
   EyeIcon,
 } from "@/components/icons"
 import type { ClientProfile, DocumentType, DocumentStatus, DocumentUploadQueue, Document } from "@/lib/types"
-import { uploadDocument, getDocumentQueue, downloadDocument, viewDocument } from "@/lib/api"
+import { uploadDocument, getDocumentQueue, downloadDocument, viewDocument, reuploadDocument } from "@/lib/api"
 
 interface DocumentsManagerProps {
   profile: ClientProfile
@@ -77,7 +77,13 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [viewingDoc, setViewingDoc] = useState<Document | null>(null)
+  const [reuploadDialogOpen, setReuploadDialogOpen] = useState(false)
+  const [reuploadingDoc, setReuploadingDoc] = useState<Document | null>(null)
+  const [reuploadFile, setReuploadFile] = useState<File | null>(null)
+  const [isReuploading, setIsReuploading] = useState(false)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const reuploadInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     loadUploadQueue()
@@ -130,7 +136,43 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
       setDocType("")
       setSelectedApp("")
       setUploadProgress(0)
+      setSuccessMessage("Document uploaded successfully!")
+      setTimeout(() => setSuccessMessage(null), 3000)
     }, 500)
+  }
+
+  const handleReuploadClick = (doc: Document) => {
+    setReuploadingDoc(doc)
+    setReuploadFile(null)
+    setReuploadDialogOpen(true)
+  }
+
+  const handleReuploadFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setReuploadFile(e.target.files[0])
+    }
+  }
+
+  const handleReupload = async () => {
+    if (!reuploadFile || !reuploadingDoc) return
+
+    setIsReuploading(true)
+
+    const result = await reuploadDocument({
+      documentId: reuploadingDoc.id,
+      clientId: profile.id,
+      file: reuploadFile,
+    })
+
+    setIsReuploading(false)
+
+    if (result.success) {
+      setReuploadDialogOpen(false)
+      setReuploadingDoc(null)
+      setReuploadFile(null)
+      setSuccessMessage("Document re-uploaded successfully! It will be reviewed shortly.")
+      setTimeout(() => setSuccessMessage(null), 3000)
+    }
   }
 
   const handleView = async (doc: Document) => {
@@ -144,8 +186,14 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
   const handleDownload = async (doc: Document) => {
     const result = await downloadDocument(doc.id)
     if (result.success && result.data) {
-      // In production, this would trigger a file download
-      window.open(result.data.downloadUrl, "_blank")
+      // Create a temporary link to trigger download
+      const link = document.createElement("a")
+      link.href = result.data.downloadUrl
+      link.download = result.data.fileName
+      link.target = "_blank"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
     }
   }
 
@@ -158,6 +206,14 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
 
   return (
     <div className="space-y-6">
+      {/* Success Message */}
+      {successMessage && (
+        <div className="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-lg flex items-center gap-2">
+          <CheckCircleIcon className="h-5 w-5" />
+          {successMessage}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Documents</h1>
@@ -349,7 +405,11 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" className="bg-orange-600 text-white hover:bg-orange-700">
+                      <Button
+                        size="sm"
+                        className="bg-orange-600 text-white hover:bg-orange-700"
+                        onClick={() => handleReuploadClick(doc)}
+                      >
                         <UploadIcon className="mr-2 h-3 w-3" />
                         Re-upload
                       </Button>
@@ -430,17 +490,33 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
         </CardContent>
       </Card>
 
+      {/* View Document Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
-        <DialogContent className="bg-card max-w-2xl">
+        <DialogContent className="bg-card max-w-3xl">
           <DialogHeader>
-            <DialogTitle className="text-card-foreground">Document Details</DialogTitle>
+            <DialogTitle className="text-card-foreground">Document Preview</DialogTitle>
+            <DialogDescription>{viewingDoc?.name}</DialogDescription>
           </DialogHeader>
           {viewingDoc && (
             <div className="space-y-4 py-4">
-              <div className="aspect-video bg-muted rounded-lg flex items-center justify-center">
-                <FileTextIcon className="h-16 w-16 text-muted-foreground" />
-                <p className="text-muted-foreground ml-4">Document Preview</p>
+              {/* Document Preview */}
+              <div className="aspect-[4/3] bg-muted rounded-lg overflow-hidden border">
+                {viewingDoc.fileUrl ? (
+                  <img
+                    src={viewingDoc.fileUrl || "/placeholder.svg"}
+                    alt={viewingDoc.name}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center">
+                    <FileTextIcon className="h-16 w-16 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Preview not available</p>
+                    <p className="text-sm text-muted-foreground mt-1">Click download to view the document</p>
+                  </div>
+                )}
               </div>
+
+              {/* Document Details */}
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <Label className="text-muted-foreground">File Name</Label>
@@ -483,6 +559,70 @@ export function DocumentsManager({ profile }: DocumentsManagerProps) {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Re-upload Document Dialog */}
+      <Dialog open={reuploadDialogOpen} onOpenChange={setReuploadDialogOpen}>
+        <DialogContent className="bg-card">
+          <DialogHeader>
+            <DialogTitle className="text-card-foreground">Re-upload Document</DialogTitle>
+            <DialogDescription>Upload a new version of {reuploadingDoc?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {reuploadingDoc?.feedback && (
+              <div className="p-3 rounded-lg bg-orange-50 border border-orange-200">
+                <div className="flex items-start gap-2">
+                  <MessageSquareIcon className="h-4 w-4 text-orange-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs font-medium text-orange-700">Admin Feedback:</p>
+                    <p className="text-sm text-orange-800">{reuploadingDoc.feedback}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              <Label>Select New File</Label>
+              <div
+                className="border-2 border-dashed border-border rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => reuploadInputRef.current?.click()}
+              >
+                <Input
+                  ref={reuploadInputRef}
+                  type="file"
+                  className="hidden"
+                  accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+                  onChange={handleReuploadFileChange}
+                />
+                {reuploadFile ? (
+                  <div className="flex items-center justify-center gap-2">
+                    <FileTextIcon className="h-5 w-5 text-primary" />
+                    <span className="text-sm font-medium">{reuploadFile.name}</span>
+                  </div>
+                ) : (
+                  <>
+                    <UploadIcon className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
+                    <p className="text-sm text-muted-foreground">Click to select file</p>
+                    <p className="text-xs text-muted-foreground mt-1">PDF, DOC, DOCX, JPG, PNG (max 10MB)</p>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setReuploadDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleReupload}
+                className="flex-1 bg-primary text-primary-foreground"
+                disabled={!reuploadFile || isReuploading}
+              >
+                {isReuploading ? "Uploading..." : "Re-upload Document"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

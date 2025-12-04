@@ -20,7 +20,7 @@ import {
   MessageSquareIcon,
 } from "@/components/icons"
 import type { Document, DocumentStatus } from "@/lib/types"
-import { reviewDocument } from "@/lib/api"
+import { reviewDocument, viewDocument, downloadDocument } from "@/lib/api"
 
 interface DocumentReviewManagerProps {
   documents: Document[]
@@ -49,6 +49,9 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
   const [adminNotes, setAdminNotes] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [activeTab, setActiveTab] = useState("pending")
+  const [viewDialogOpen, setViewDialogOpen] = useState(false)
+  const [viewingDoc, setViewingDoc] = useState<(Document & { previewUrl?: string }) | null>(null)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null)
 
   const handleReview = async () => {
     if (!selectedDoc || !newStatus) return
@@ -66,9 +69,32 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
       setNewStatus("")
       setFeedback("")
       setAdminNotes("")
+      setSuccessMessage("Document reviewed successfully!")
+      setTimeout(() => setSuccessMessage(null), 3000)
       onDocumentUpdated?.()
     }
     setIsSubmitting(false)
+  }
+
+  const handleView = async (doc: Document) => {
+    const result = await viewDocument(doc.id)
+    if (result.success && result.data) {
+      setViewingDoc(result.data)
+      setViewDialogOpen(true)
+    }
+  }
+
+  const handleDownload = async (doc: Document) => {
+    const result = await downloadDocument(doc.id)
+    if (result.success && result.data) {
+      const link = document.createElement("a")
+      link.href = result.data.downloadUrl
+      link.download = result.data.fileName
+      link.target = "_blank"
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    }
   }
 
   const filterByStatus = (docs: Document[], tab: string) => {
@@ -97,6 +123,14 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
 
   return (
     <div className="space-y-6">
+      {/* Success Message */}
+      {successMessage && (
+        <div className="bg-green-100 border border-green-300 text-green-800 px-4 py-3 rounded-lg flex items-center gap-2">
+          <CheckCircleIcon className="h-5 w-5" />
+          {successMessage}
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
         {Object.entries(statusConfig).map(([status, config]) => {
@@ -185,10 +219,10 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
                             {config.label}
                           </Badge>
                           <div className="flex items-center gap-1">
-                            <Button variant="ghost" size="icon" title="View">
+                            <Button variant="ghost" size="icon" title="View" onClick={() => handleView(doc)}>
                               <EyeIcon className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" title="Download">
+                            <Button variant="ghost" size="icon" title="Download" onClick={() => handleDownload(doc)}>
                               <DownloadIcon className="h-4 w-4" />
                             </Button>
                             <Button
@@ -272,6 +306,84 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* View Document Dialog */}
+      <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
+        <DialogContent className="bg-card max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Document Preview</DialogTitle>
+            <DialogDescription>{viewingDoc?.name}</DialogDescription>
+          </DialogHeader>
+          {viewingDoc && (
+            <div className="space-y-4 py-4">
+              {/* Document Preview */}
+              <div className="aspect-[4/3] bg-muted rounded-lg overflow-hidden border">
+                {viewingDoc.fileUrl ? (
+                  <img
+                    src={viewingDoc.fileUrl || "/placeholder.svg"}
+                    alt={viewingDoc.name}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <div className="w-full h-full flex flex-col items-center justify-center">
+                    <FileTextIcon className="h-16 w-16 text-muted-foreground mb-4" />
+                    <p className="text-muted-foreground">Preview not available</p>
+                    <p className="text-sm text-muted-foreground mt-1">Click download to view the document</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Document Details */}
+              <div className="grid gap-4 md:grid-cols-2">
+                <div>
+                  <Label className="text-muted-foreground">File Name</Label>
+                  <p className="font-medium">{viewingDoc.name}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Type</Label>
+                  <p className="capitalize">{viewingDoc.type.replace(/_/g, " ")}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Upload Date</Label>
+                  <p>{new Date(viewingDoc.uploadedAt).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <Label className="text-muted-foreground">Status</Label>
+                  <Badge
+                    className={statusConfig[viewingDoc.status].bgColor + " " + statusConfig[viewingDoc.status].color}
+                  >
+                    {statusConfig[viewingDoc.status].label}
+                  </Badge>
+                </div>
+              </div>
+              {viewingDoc.feedback && (
+                <div>
+                  <Label className="text-muted-foreground">Client Feedback</Label>
+                  <p className="p-3 bg-muted rounded-lg mt-1">{viewingDoc.feedback}</p>
+                </div>
+              )}
+              {viewingDoc.adminNotes && (
+                <div>
+                  <Label className="text-muted-foreground">Admin Notes (Internal)</Label>
+                  <p className="p-3 bg-yellow-50 rounded-lg mt-1 text-yellow-800">{viewingDoc.adminNotes}</p>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setViewDialogOpen(false)}>
+                  Close
+                </Button>
+                <Button
+                  className="flex-1 bg-primary text-primary-foreground"
+                  onClick={() => handleDownload(viewingDoc)}
+                >
+                  <DownloadIcon className="mr-2 h-4 w-4" />
+                  Download
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
