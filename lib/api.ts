@@ -843,6 +843,40 @@ export async function getWeeklyAvailability(): Promise<ApiResponse<AvailabilityS
   return { success: true, data: availability }
 }
 
+export async function getMonthAvailability(
+  year: number,
+  month: number,
+): Promise<ApiResponse<{ date: string; available: boolean }[]>> {
+  await delay(300)
+
+  // Get the number of days in the month
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+
+  const availability: { date: string; available: boolean }[] = []
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const date = new Date(year, month, day)
+    const dateStr = date.toISOString().split("T")[0]
+
+    // Check if date is in the past
+    if (date < today) {
+      availability.push({ date: dateStr, available: false })
+      continue
+    }
+
+    // Check if there are slots available for this date
+    const dayAvailability = mockAvailability.find((a) => a.date === dateStr)
+    availability.push({
+      date: dateStr,
+      available: dayAvailability ? dayAvailability.slots.length > 0 : false,
+    })
+  }
+
+  return { success: true, data: availability }
+}
+
 // ==========================================
 // ACCESS CODE APIs
 // ==========================================
