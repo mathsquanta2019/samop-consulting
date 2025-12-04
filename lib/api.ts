@@ -796,11 +796,20 @@ export async function setAvailability(data: {
   slots: { start: string; end: string }[]
 }): Promise<ApiResponse<AvailabilitySchedule>> {
   await delay(500)
-  const existing = mockAvailability.find((a) => a.date === data.date)
-  if (existing) {
-    const updated = { ...existing, slots: data.slots, updatedAt: new Date().toISOString() }
+  const existingIndex = mockAvailability.findIndex((a) => a.date === data.date)
+
+  if (existingIndex !== -1) {
+    // Update existing availability
+    const updated: AvailabilitySchedule = {
+      ...mockAvailability[existingIndex],
+      slots: data.slots,
+      updatedAt: new Date().toISOString(),
+    }
+    mockAvailability[existingIndex] = updated
     return { success: true, data: updated, message: "Availability updated!" }
   }
+
+  // Create new availability
   const newAvailability: AvailabilitySchedule = {
     id: "avl_" + Date.now(),
     date: data.date,
@@ -809,11 +818,16 @@ export async function setAvailability(data: {
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }
+  mockAvailability.push(newAvailability)
   return { success: true, data: newAvailability, message: "Availability set!" }
 }
 
 export async function deleteAvailability(id: string): Promise<ApiResponse<null>> {
   await delay(400)
+  const index = mockAvailability.findIndex((a) => a.id === id)
+  if (index !== -1) {
+    mockAvailability.splice(index, 1)
+  }
   return { success: true, message: "Availability deleted" }
 }
 
