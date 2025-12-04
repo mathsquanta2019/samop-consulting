@@ -59,6 +59,7 @@ export interface Application {
   startDate?: string
   notes: string
   adminNotes?: string
+  formId?: string // Add formId to link Application to ApplicationFormData
   createdAt: string
   updatedAt: string
 }

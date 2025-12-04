@@ -923,7 +923,18 @@ export async function getApplicationForms(clientId?: string): Promise<ApiRespons
 
 export async function getApplicationFormById(id: string): Promise<ApiResponse<ApplicationFormData>> {
   await delay(300)
-  const form = mockApplicationForms.find((f) => f.id === id)
+
+  // First try to find by form ID directly
+  let form = mockApplicationForms.find((f) => f.id === id)
+
+  // If not found, try to find via Application's formId
+  if (!form) {
+    const application = mockApplications.find((a) => a.id === id)
+    if (application && application.formId) {
+      form = mockApplicationForms.find((f) => f.id === application.formId)
+    }
+  }
+
   if (form) {
     return { success: true, data: form }
   }
