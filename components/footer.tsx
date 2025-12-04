@@ -2,8 +2,6 @@ import Link from "next/link"
 import Image from "next/image"
 import { InstagramIcon, FacebookIcon } from "@/components/icons"
 
-// ... existing code ...
-
 function XIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
@@ -54,7 +52,6 @@ const footerLinks = {
     { label: "Study in Canada", href: "#" },
     { label: "Study in Australia", href: "#" },
   ],
-  // <CHANGE> Added legal links
   legal: [
     { label: "Privacy Policy", href: "/privacy" },
     { label: "Terms & Conditions", href: "/terms" },
@@ -77,4 +74,113 @@ export function Footer() {
               />
               <div>
                 <span className="font-serif text-xl font-semibold">Samop Consulting</span>
-                <p className="text-xs text-primary\
+                <p className="text-xs text-primary-foreground/70">Your Gateway to Global Education</p>
+              </div>
+            </Link>
+            <p className="mt-6 text-primary-foreground/80 leading-relaxed max-w-md">
+              Empowering students worldwide to achieve their dreams of international education through expert guidance
+              and personalized support.
+            </p>
+            <div className="mt-6 flex gap-4">
+              {socialLinks.map((social) => (
+                <Link
+                  key={social.label}
+                  href={social.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2 rounded-full bg-primary-foreground/10 hover:bg-primary-foreground/20 transition-colors"
+                  aria-label={social.label}
+                >
+                  <social.icon className="h-5 w-5" />
+                </Link>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-lg mb-4">Services</h3>
+            <ul className="space-y-3">
+              {footerLinks.services.map((link) => (
+                <li key={link.label}>
+                  <Link
+                    href={link.href}
+                    className="text-primary-foreground/80 hover:text-primary-foreground transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-lg mb-4">Company</h3>
+            <ul className="space-y-3">
+              {footerLinks.company.map((link) => (
+                <li key={link.label}>
+                  <Link
+                    href={link.href}
+                    className="text-primary-foreground/80 hover:text-primary-foreground transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <h3 className="font-semibold text-lg mb-4 mt-6">Legal</h3>
+            <ul className="space-y-3">
+              {footerLinks.legal.map((link) => (
+                <li key={link.label}>
+                  <Link
+                    href={link.href}
+                    className="text-primary-foreground/80 hover:text-primary-foreground transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <div>
+            <h3 className="font-semibold text-lg mb-4">Destinations</h3>
+            <ul className="space-y-3">
+              {footerLinks.destinations.map((link) => (
+                <li key={link.label}>
+                  <Link
+                    href={link.href}
+                    className="text-primary-foreground/80 hover:text-primary-foreground transition-colors"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+
+        <div className="mt-12 pt-8 border-t border-primary-foreground/20">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <p className="text-primary-foreground/70 text-sm">
+              © {new Date().getFullYear()} SAMOP Consulting. All rights reserved.
+            </p>
+            <div className="flex gap-6 text-sm">
+              <Link
+                href="/privacy"
+                className="text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+              >
+                Privacy Policy
+              </Link>
+              <Link
+                href="/terms"
+                className="text-primary-foreground/70 hover:text-primary-foreground transition-colors"
+              >
+                Terms & Conditions
+              </Link>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+  )
+}
