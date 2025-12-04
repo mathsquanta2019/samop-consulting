@@ -128,16 +128,19 @@ export default function AvailabilityPage() {
     setIsDeleting(false)
   }
 
-  const getAvailabilityForDate = (date: Date): AvailabilitySchedule | undefined => {
+  const getAvailabilityForDate = (date: Date | null | undefined): AvailabilitySchedule | undefined => {
+    if (!date) return undefined
     const dateStr = date.toISOString().split("T")[0]
     return availability.find((a) => a.date === dateStr)
   }
 
-  const hasAvailability = (date: Date) => {
+  const hasAvailability = (date: Date | null | undefined) => {
+    if (!date) return false
     return !!getAvailabilityForDate(date)
   }
 
-  const getSlotCount = (date: Date): number => {
+  const getSlotCount = (date: Date | null | undefined): number => {
+    if (!date) return 0
     const avl = getAvailabilityForDate(date)
     if (!avl) return 0
     // Calculate total 30-minute slots
@@ -152,13 +155,15 @@ export default function AvailabilityPage() {
     return total
   }
 
-  const isPastDate = (date: Date) => {
+  const isPastDate = (date: Date | null | undefined) => {
+    if (!date) return true
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     return date < today
   }
 
-  const isToday = (date: Date) => {
+  const isToday = (date: Date | null | undefined) => {
+    if (!date) return false
     const today = new Date()
     return date.toDateString() === today.toDateString()
   }
