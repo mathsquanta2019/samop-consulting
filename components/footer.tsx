@@ -43,7 +43,7 @@ const footerLinks = {
   ],
   company: [
     { label: "About Us", href: "/#about" },
-    { label: "Contact", href: "/#contact" },
+    { label: "Contact Us", href: "/contact" },
     { label: "Client Portal", href: "/client/login" },
   ],
   destinations: [

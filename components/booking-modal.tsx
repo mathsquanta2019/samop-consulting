@@ -1,21 +1,31 @@
 "use client"
 import { useState, useEffect } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { cn } from "@/lib/utils"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import {
+  CalendarIcon,
+  ClockIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  Loader2Icon,
+  CheckCircleIcon,
+  CreditCardIcon,
+  BuildingIcon,
+  SmartphoneIcon,
+} from "@/components/icons"
 import {
   getAppointmentFees,
-  getAvailability,
+  createAppointmentWithPayment,
+  getMonthAvailability,
   getAvailableSlots,
   validateAccessCode,
-  createAppointmentWithPayment,
 } from "@/lib/api"
-import type { AppointmentFee, AvailabilitySchedule, BookingSlot } from "@/lib/types"
+import type { AppointmentFee, AvailabilitySchedule } from "@/lib/types"
 
 // Icons as inline SVGs to avoid lucide-react issues
 const Calendar = ({ className }: { className?: string }) => (
@@ -149,13 +159,15 @@ const countryCodes = [
   { code: "+81", country: "JP" },
 ]
 
+type PaymentMethod = "credit_card" | "bank_transfer" | "mobile_money"
+
 export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }: BookingModalProps) {
   const [step, setStep] = useState<Step>("calendar")
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
   const [fees, setFees] = useState<AppointmentFee[]>([])
   const [monthAvailability, setMonthAvailability] = useState<AvailabilitySchedule[]>([])
-  const [availableSlots, setAvailableSlots] = useState<BookingSlot[]>([])
+  const [availableSlots, setAvailableSlots] = useState<AvailabilitySchedule[]>([])
   const [isLoadingMonth, setIsLoadingMonth] = useState(false)
   const [isLoadingSlots, setIsLoadingSlots] = useState(false)
   const [selectedFee, setSelectedFee] = useState<AppointmentFee | null>(null)
@@ -174,6 +186,8 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
     time: "",
     notes: "",
   })
+
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("credit_card")
 
   useEffect(() => {
     if (open) {
@@ -217,7 +231,7 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
     const month = currentMonth.getMonth()
     const startDate = new Date(year, month, 1).toISOString().split("T")[0]
     const endDate = new Date(year, month + 1, 0).toISOString().split("T")[0]
-    const result = await getAvailability(startDate, endDate)
+    const result = await getMonthAvailability(startDate, endDate)
     if (result.success && result.data) {
       setMonthAvailability(result.data)
     }
@@ -229,13 +243,7 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
     const dateStr = date.toISOString().split("T")[0]
     const result = await getAvailableSlots(dateStr)
     if (result.success && result.data) {
-      // Convert string[] to BookingSlot[]
-      const bookingSlots: BookingSlot[] = result.data.map((time: string) => ({
-        date: dateStr,
-        time,
-        available: true,
-      }))
-      setAvailableSlots(bookingSlots)
+      setAvailableSlots(result.data)
     } else {
       setAvailableSlots([])
     }
@@ -269,7 +277,7 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
     setFormData({ ...formData, date: date.toISOString().split("T")[0], time: "" })
   }
 
-  const handleTimeSelect = (slot: BookingSlot) => {
+  const handleTimeSelect = (slot: AvailabilitySchedule) => {
     if (!slot.available) return
     setFormData({ ...formData, date: slot.date, time: slot.time })
   }
@@ -327,7 +335,7 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
       date: formData.date,
       time: formData.time,
       notes: formData.notes,
-      paymentMethod: "stripe",
+      paymentMethod: paymentMethod,
       accessCode: accessCodeValid ? accessCode : undefined,
     })
 
@@ -366,35 +374,28 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
       const isSelected = selectedDay?.toDateString() === date.toDateString()
 
       days.push(
-        <TooltipProvider key={day}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={() => handleDayClick(date)}
-                disabled={isPast || !hasSlots}
-                className={cn(
-                  "h-10 w-10 rounded-lg text-sm font-medium transition-all relative",
-                  isPast && "text-muted-foreground/40 cursor-not-allowed",
-                  !isPast && !hasSlots && "text-muted-foreground/60 cursor-not-allowed",
-                  !isPast && hasSlots && "hover:bg-primary/10 cursor-pointer",
-                  isSelected && "bg-primary text-primary-foreground hover:bg-primary",
-                  !isPast && hasSlots && !isSelected && "text-foreground",
-                )}
-              >
-                {day}
-                {!isPast && hasSlots && (
-                  <span className="absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-green-500" />
-                )}
-              </button>
-            </TooltipTrigger>
-            {!isPast && hasSlots && (
-              <TooltipContent>
-                <p>{slotsCount} slots available</p>
-              </TooltipContent>
-            )}
-          </Tooltip>
-        </TooltipProvider>,
+        <div key={day} className="relative">
+          <button
+            type="button"
+            onClick={() => handleDayClick(date)}
+            disabled={isPast || !hasSlots}
+            className={`h-10 w-10 rounded-lg text-sm font-medium transition-all ${
+              isPast && "text-muted-foreground/40 cursor-not-allowed"
+            } ${!isPast && !hasSlots && "text-muted-foreground/60 cursor-not-allowed"} ${
+              !isPast && hasSlots && "hover:bg-primary/10 cursor-pointer"
+            } ${isSelected && "bg-primary text-primary-foreground hover:bg-primary"} ${
+              !isPast && hasSlots && !isSelected && "text-foreground"
+            }`}
+          >
+            {day}
+          </button>
+          {!isPast && hasSlots && (
+            <div className="absolute bottom-1 left-1/2 -translate-x-1/2 h-1 w-1 rounded-full bg-green-500"></div>
+          )}
+          {!isPast && hasSlots && (
+            <div className="absolute top-0 left-1/2 -translate-x-1/2 text-xs text-green-500">{slotsCount} slots</div>
+          )}
+        </div>,
       )
     }
 
@@ -411,130 +412,119 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
             {step === "payment" && "Payment"}
             {step === "confirmation" && "Booking Confirmed!"}
           </DialogTitle>
-          <DialogDescription>
-            {step === "calendar" && "Select a date and time for your consultation"}
-            {step === "details" && "Enter your contact information"}
-            {step === "payment" && "Complete your booking"}
-            {step === "confirmation" && "Your appointment has been scheduled"}
-          </DialogDescription>
         </DialogHeader>
 
         {step === "calendar" && (
-          <TooltipProvider>
-            <div className="grid md:grid-cols-2 gap-6">
-              {/* Calendar */}
-              <div className="border rounded-xl p-4">
-                <div className="flex items-center justify-between mb-4">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <h3 className="font-semibold">
-                    {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
-                  </h3>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground mb-2">
-                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
-                    <div key={d} className="h-8 flex items-center justify-center font-medium">
-                      {d}
-                    </div>
-                  ))}
-                </div>
-
-                {isLoadingMonth ? (
-                  <div className="flex items-center justify-center py-12">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-7 gap-1">{renderCalendar()}</div>
-                )}
-              </div>
-
-              {/* Time Slots */}
-              <div className="border rounded-xl p-4">
-                <div className="flex items-center gap-2 mb-3">
-                  <Clock className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="font-semibold text-sm">
-                    {selectedDay
-                      ? selectedDay.toLocaleDateString("en-US", {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                        })
-                      : "Available Times"}
-                  </h3>
-                </div>
-
-                {!selectedDay ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-center">
-                    <Calendar className="h-10 w-10 text-muted-foreground/30 mb-3" />
-                    <p className="text-muted-foreground text-sm">Select a date to view times</p>
-                  </div>
-                ) : isLoadingSlots ? (
-                  <div className="flex flex-col items-center justify-center py-10">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
-                    <p className="mt-3 text-muted-foreground text-sm">Loading...</p>
-                  </div>
-                ) : availableSlots.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-center">
-                    <p className="text-muted-foreground text-sm">No slots available</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="grid grid-cols-3 gap-2 max-h-[200px] overflow-y-auto pr-1">
-                      {availableSlots.map((slot) => {
-                        const isSelected = formData.date === slot.date && formData.time === slot.time
-                        return (
-                          <Button
-                            key={`${slot.date}-${slot.time}`}
-                            variant={isSelected ? "default" : "outline"}
-                            size="sm"
-                            className={cn(
-                              "h-9 text-xs",
-                              !slot.available && "opacity-40 cursor-not-allowed line-through",
-                            )}
-                            disabled={!slot.available}
-                            onClick={() => handleTimeSelect(slot)}
-                          >
-                            {slot.time}
-                          </Button>
-                        )
-                      })}
-                    </div>
-                    <p className="text-[10px] text-muted-foreground mt-3 text-center">
-                      All times in Central Standard Time (CST)
-                    </p>
-                  </>
-                )}
-              </div>
-            </div>
-
-            {canProceedToDetails && (
-              <div className="mt-5 pt-5 border-t flex justify-end">
-                <Button onClick={() => setStep("details")}>
-                  Continue
-                  <ChevronRight className="ml-1 h-4 w-4" />
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Calendar */}
+            <div className="border rounded-xl p-4">
+              <div className="flex items-center justify-between mb-4">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1))}
+                >
+                  <ChevronLeftIcon className="h-4 w-4" />
+                </Button>
+                <h3 className="font-semibold">
+                  {currentMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" })}
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1))}
+                >
+                  <ChevronRightIcon className="h-4 w-4" />
                 </Button>
               </div>
-            )}
-          </TooltipProvider>
+
+              <div className="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground mb-2">
+                {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                  <div key={d} className="h-8 flex items-center justify-center font-medium">
+                    {d}
+                  </div>
+                ))}
+              </div>
+
+              {isLoadingMonth ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2Icon className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
+                <div className="grid grid-cols-7 gap-1">{renderCalendar()}</div>
+              )}
+            </div>
+
+            {/* Time Slots */}
+            <div className="border rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-3">
+                <ClockIcon className="h-4 w-4 text-muted-foreground" />
+                <h3 className="font-semibold text-sm">
+                  {selectedDay
+                    ? selectedDay.toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })
+                    : "Available Times"}
+                </h3>
+              </div>
+
+              {!selectedDay ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <CalendarIcon className="h-10 w-10 text-muted-foreground/30 mb-3" />
+                  <p className="text-muted-foreground text-sm">Select a date to view times</p>
+                </div>
+              ) : isLoadingSlots ? (
+                <div className="flex flex-col items-center justify-center py-10">
+                  <Loader2Icon className="h-6 w-6 animate-spin text-primary" />
+                  <p className="mt-3 text-muted-foreground text-sm">Loading...</p>
+                </div>
+              ) : availableSlots.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <p className="text-muted-foreground text-sm">No slots available</p>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-2 max-h-[200px] overflow-y-auto pr-1">
+                    {availableSlots.map((slot) => {
+                      const isSelected = formData.date === slot.date && formData.time === slot.time
+                      return (
+                        <Button
+                          key={`${slot.date}-${slot.time}`}
+                          variant={isSelected ? "default" : "outline"}
+                          size="sm"
+                          className={`h-9 text-xs ${!slot.available && "opacity-40 cursor-not-allowed line-through"}`}
+                          disabled={!slot.available}
+                          onClick={() => handleTimeSelect(slot)}
+                        >
+                          {slot.time}
+                        </Button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-3 text-center">
+                    All times in Central Standard Time (CST)
+                  </p>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {step === "calendar" && canProceedToDetails && (
+          <div className="mt-5 pt-5 border-t flex justify-end">
+            <Button onClick={() => setStep("details")}>
+              Continue
+              <ChevronRightIcon className="ml-1 h-4 w-4" />
+            </Button>
+          </div>
         )}
 
         {step === "details" && (
           <div className="space-y-5">
             <div className="flex items-center gap-3 p-3 bg-muted/50 rounded-lg text-sm">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <CalendarIcon className="h-4 w-4 text-muted-foreground" />
               <span>{formatDateLong(formData.date)}</span>
               <span className="text-muted-foreground">at</span>
               <span className="font-medium">{formData.time}</span>
@@ -616,7 +606,7 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
 
             <div className="flex gap-3 pt-4 border-t">
               <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setStep("calendar")}>
-                <ChevronLeft className="mr-1 h-4 w-4" />
+                <ChevronLeftIcon className="mr-1 h-4 w-4" />
                 Back
               </Button>
               <Button
@@ -625,7 +615,7 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
                 onClick={() => setStep("payment")}
               >
                 Continue to Payment
-                <ChevronRight className="ml-1 h-4 w-4" />
+                <ChevronRightIcon className="ml-1 h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -656,6 +646,52 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
             </div>
 
             <div className="space-y-3">
+              <Label className="text-base font-semibold">Select Payment Method</Label>
+              <RadioGroup
+                value={paymentMethod}
+                onValueChange={(value) => setPaymentMethod(value as PaymentMethod)}
+                className="grid gap-3"
+              >
+                <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                  <RadioGroupItem value="credit_card" id="credit_card" />
+                  <Label htmlFor="credit_card" className="flex items-center gap-3 cursor-pointer flex-1">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <CreditCardIcon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Credit/Debit Card</p>
+                      <p className="text-sm text-muted-foreground">Visa, Mastercard, American Express</p>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                  <RadioGroupItem value="bank_transfer" id="bank_transfer" />
+                  <Label htmlFor="bank_transfer" className="flex items-center gap-3 cursor-pointer flex-1">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <BuildingIcon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Bank Transfer</p>
+                      <p className="text-sm text-muted-foreground">Direct bank transfer (1-3 business days)</p>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-3 p-4 border rounded-lg hover:bg-muted/50 cursor-pointer transition-colors">
+                  <RadioGroupItem value="mobile_money" id="mobile_money" />
+                  <Label htmlFor="mobile_money" className="flex items-center gap-3 cursor-pointer flex-1">
+                    <div className="p-2 bg-primary/10 rounded-lg">
+                      <SmartphoneIcon className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="font-medium">Mobile Money</p>
+                      <p className="text-sm text-muted-foreground">M-Pesa, MTN Mobile Money, Airtel Money</p>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+
+            <div className="space-y-3">
               <Label>Have an access code?</Label>
               <div className="flex gap-2">
                 <Input
@@ -678,13 +714,13 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
 
             <div className="flex gap-3 pt-4 border-t">
               <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setStep("details")}>
-                <ChevronLeft className="mr-1 h-4 w-4" />
+                <ChevronLeftIcon className="mr-1 h-4 w-4" />
                 Back
               </Button>
               <Button className="flex-1" onClick={handleSubmit} disabled={isSubmitting}>
                 {isSubmitting ? (
                   <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
                     Processing...
                   </>
                 ) : accessCodeValid ? (
@@ -700,7 +736,7 @@ export function BookingModal({ open, onOpenChange, isClientPortal, clientInfo }:
         {step === "confirmation" && (
           <div className="text-center py-8">
             <div className="h-16 w-16 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="h-8 w-8 text-green-600" />
+              <CheckCircleIcon className="h-8 w-8 text-green-600" />
             </div>
             <h3 className="text-xl font-semibold mb-2">Booking Confirmed!</h3>
             <p className="text-muted-foreground mb-6">
