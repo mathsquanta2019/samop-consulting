@@ -1600,3 +1600,77 @@ export async function togglePaymentGatewayStatus(id: string): Promise<ApiRespons
     message: `Payment gateway ${mockPaymentGateways[index].isActive ? "activated" : "deactivated"}!`,
   }
 }
+
+export async function requestDocumentReupload(
+  documentId: string,
+  data: {
+    reason: string
+    instructions?: string
+    requestedBy: string
+  },
+): Promise<ApiResponse<Document>> {
+  await delay(500)
+  const docIndex = mockDocuments.findIndex((d) => d.id === documentId)
+  if (docIndex === -1) {
+    return { success: false, error: "Document not found" }
+  }
+
+  // Update document status to requires_update
+  mockDocuments[docIndex] = {
+    ...mockDocuments[docIndex],
+    status: "requires_update",
+    feedback: `Re-upload requested: ${data.reason}${data.instructions ? `. ${data.instructions}` : ""}`,
+    reviewedAt: new Date().toISOString(),
+    reviewedBy: data.requestedBy,
+  }
+
+  return {
+    success: true,
+    data: mockDocuments[docIndex],
+    message: "Re-upload request sent to client!",
+  }
+}
+
+export async function requestAdditionalDocuments(data: {
+  applicationId: string
+  clientId: string
+  documentTypes: DocumentType[]
+  message?: string
+  requestedBy: string
+}): Promise<ApiResponse<{ requestId: string }>> {
+  await delay(500)
+
+  // In production, this would:
+  // 1. Create document request records in the database
+  // 2. Send email notification to client
+  // 3. Update application status if needed
+
+  const requestId = "docreq_" + Date.now()
+
+  return {
+    success: true,
+    data: { requestId },
+    message: `Document request sent to client for ${data.documentTypes.length} document(s)!`,
+  }
+}
+
+// Get pending document requests for a client
+export async function getClientDocumentRequests(clientId: string): Promise<
+  ApiResponse<
+    {
+      id: string
+      applicationId: string
+      documentTypes: DocumentType[]
+      message?: string
+      requestedAt: string
+      status: "pending" | "completed"
+    }[]
+  >
+> {
+  await delay(300)
+  // Mock data - in production this would fetch from database
+  return {
+    success: true,
+    data: [],
+  }
+}

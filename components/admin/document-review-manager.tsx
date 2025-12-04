@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -18,9 +19,20 @@ import {
   EyeIcon,
   DownloadIcon,
   MessageSquareIcon,
+  MailIcon,
+  RefreshCwIcon,
+  UserIcon,
+  FolderIcon,
 } from "@/components/icons"
-import type { Document, DocumentStatus } from "@/lib/types"
-import { reviewDocument, viewDocument, downloadDocument } from "@/lib/api"
+import type { Document, DocumentStatus, DocumentType, Application } from "@/lib/types"
+import {
+  reviewDocument,
+  viewDocument,
+  downloadDocument,
+  getApplications,
+  requestDocumentReupload,
+  requestAdditionalDocuments,
+} from "@/lib/api"
 
 interface DocumentReviewManagerProps {
   documents: Document[]
@@ -42,6 +54,24 @@ const statusConfig: Record<
   },
 }
 
+const documentTypeLabels: Record<DocumentType, string> = {
+  passport: "Passport",
+  transcript: "Academic Transcript",
+  diploma: "Diploma/Certificate",
+  recommendation_letter: "Recommendation Letter",
+  statement_of_purpose: "Statement of Purpose",
+  cv_resume: "CV/Resume",
+  financial_statement: "Financial Statement",
+  english_proficiency: "English Proficiency",
+  photo: "Passport Photo",
+  birth_certificate: "Birth Certificate",
+  marriage_certificate: "Marriage Certificate",
+  police_clearance: "Police Clearance",
+  medical_report: "Medical Report",
+  employment_letter: "Employment Letter",
+  other: "Other Document",
+}
+
 export function DocumentReviewManager({ documents, onDocumentUpdated }: DocumentReviewManagerProps) {
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null)
   const [newStatus, setNewStatus] = useState<DocumentStatus | "">("")
@@ -52,6 +82,41 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
   const [viewDialogOpen, setViewDialogOpen] = useState(false)
   const [viewingDoc, setViewingDoc] = useState<(Document & { previewUrl?: string }) | null>(null)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [applications, setApplications] = useState<Application[]>([])
+
+  // Request reupload dialog
+  const [reuploadDialogOpen, setReuploadDialogOpen] = useState(false)
+  const [reuploadDoc, setReuploadDoc] = useState<Document | null>(null)
+  const [reuploadReason, setReuploadReason] = useState("")
+  const [reuploadInstructions, setReuploadInstructions] = useState("")
+
+  // Request additional documents dialog
+  const [additionalDocsDialogOpen, setAdditionalDocsDialogOpen] = useState(false)
+  const [additionalDocsAppId, setAdditionalDocsAppId] = useState("")
+  const [additionalDocsClientId, setAdditionalDocsClientId] = useState("")
+  const [selectedDocTypes, setSelectedDocTypes] = useState<DocumentType[]>([])
+  const [additionalDocsMessage, setAdditionalDocsMessage] = useState("")
+
+  useEffect(() => {
+    loadApplications()
+  }, [])
+
+  const loadApplications = async () => {
+    const result = await getApplications()
+    if (result.success && result.data) {
+      setApplications(result.data)
+    }
+  }
+
+  // Get client and application info for a document
+  const getDocumentContext = (doc: Document) => {
+    const app = applications.find((a) => a.id === doc.applicationId)
+    return {
+      clientName: app ? `Client ${app.clientId.replace("usr_", "#")}` : "Unknown Client",
+      applicationName: app ? `${app.serviceType.replace(/_/g, " ")} - ${app.country || "N/A"}` : "Unknown Application",
+      applicationStatus: app?.status || "unknown",
+    }
+  }
 
   const handleReview = async () => {
     if (!selectedDoc || !newStatus) return
@@ -70,6 +135,53 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
       setFeedback("")
       setAdminNotes("")
       setSuccessMessage("Document reviewed successfully!")
+      setTimeout(() => setSuccessMessage(null), 3000)
+      onDocumentUpdated?.()
+    }
+    setIsSubmitting(false)
+  }
+
+  const handleRequestReupload = async () => {
+    if (!reuploadDoc || !reuploadReason) return
+
+    setIsSubmitting(true)
+    const result = await requestDocumentReupload(reuploadDoc.id, {
+      reason: reuploadReason,
+      instructions: reuploadInstructions,
+      requestedBy: "admin_001",
+    })
+
+    if (result.success) {
+      setReuploadDialogOpen(false)
+      setReuploadDoc(null)
+      setReuploadReason("")
+      setReuploadInstructions("")
+      setSuccessMessage("Re-upload request sent to client!")
+      setTimeout(() => setSuccessMessage(null), 3000)
+      onDocumentUpdated?.()
+    }
+    setIsSubmitting(false)
+  }
+
+  const handleRequestAdditionalDocs = async () => {
+    if (!additionalDocsAppId || !additionalDocsClientId || selectedDocTypes.length === 0) return
+
+    setIsSubmitting(true)
+    const result = await requestAdditionalDocuments({
+      applicationId: additionalDocsAppId,
+      clientId: additionalDocsClientId,
+      documentTypes: selectedDocTypes,
+      message: additionalDocsMessage,
+      requestedBy: "admin_001",
+    })
+
+    if (result.success) {
+      setAdditionalDocsDialogOpen(false)
+      setAdditionalDocsAppId("")
+      setAdditionalDocsClientId("")
+      setSelectedDocTypes([])
+      setAdditionalDocsMessage("")
+      setSuccessMessage("Document request sent to client!")
       setTimeout(() => setSuccessMessage(null), 3000)
       onDocumentUpdated?.()
     }
@@ -121,6 +233,9 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
 
   const filteredDocs = filterByStatus(documents, activeTab)
 
+  // Get unique applications for the additional docs request
+  const uniqueApps = applications.filter((app, index, self) => index === self.findIndex((a) => a.id === app.id))
+
   return (
     <div className="space-y-6">
       {/* Success Message */}
@@ -130,6 +245,14 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
           {successMessage}
         </div>
       )}
+
+      {/* Action Buttons */}
+      <div className="flex gap-2">
+        <Button onClick={() => setAdditionalDocsDialogOpen(true)} className="bg-primary text-primary-foreground">
+          <MailIcon className="h-4 w-4 mr-2" />
+          Request Documents from Client
+        </Button>
+      </div>
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
@@ -191,6 +314,7 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
                   {filteredDocs.map((doc) => {
                     const config = statusConfig[doc.status]
                     const Icon = config.icon
+                    const context = getDocumentContext(doc)
                     return (
                       <div
                         key={doc.id}
@@ -205,6 +329,19 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
                             <p className="text-sm text-muted-foreground capitalize">
                               {doc.type.replace(/_/g, " ")} • Uploaded {new Date(doc.uploadedAt).toLocaleDateString()}
                             </p>
+                            <div className="flex items-center gap-4 mt-1 text-xs text-muted-foreground">
+                              <span className="flex items-center gap-1">
+                                <UserIcon className="h-3 w-3" />
+                                {context.clientName}
+                              </span>
+                              <span className="flex items-center gap-1">
+                                <FolderIcon className="h-3 w-3" />
+                                {context.applicationName}
+                              </span>
+                              <Badge variant="outline" className="text-xs capitalize">
+                                {context.applicationStatus.replace(/_/g, " ")}
+                              </Badge>
+                            </div>
                             {doc.feedback && (
                               <div className="mt-2 flex items-start gap-2 text-sm">
                                 <MessageSquareIcon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
@@ -224,6 +361,17 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
                             </Button>
                             <Button variant="ghost" size="icon" title="Download" onClick={() => handleDownload(doc)}>
                               <DownloadIcon className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              title="Request Re-upload"
+                              onClick={() => {
+                                setReuploadDoc(doc)
+                                setReuploadDialogOpen(true)
+                              }}
+                            >
+                              <RefreshCwIcon className="h-4 w-4" />
                             </Button>
                             <Button
                               variant="outline"
@@ -257,6 +405,16 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
             <DialogDescription>{selectedDoc?.name}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {selectedDoc && (
+              <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+                <p>
+                  <strong>Client:</strong> {getDocumentContext(selectedDoc).clientName}
+                </p>
+                <p>
+                  <strong>Application:</strong> {getDocumentContext(selectedDoc).applicationName}
+                </p>
+              </div>
+            )}
             <div className="space-y-2">
               <Label>Status</Label>
               <Select value={newStatus} onValueChange={(v) => setNewStatus(v as DocumentStatus)}>
@@ -309,6 +467,151 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
         </DialogContent>
       </Dialog>
 
+      {/* Request Re-upload Dialog */}
+      <Dialog open={reuploadDialogOpen} onOpenChange={setReuploadDialogOpen}>
+        <DialogContent className="bg-card max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Request Document Re-upload</DialogTitle>
+            <DialogDescription>Ask the client to re-upload: {reuploadDoc?.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {reuploadDoc && (
+              <div className="p-3 bg-muted/50 rounded-lg text-sm space-y-1">
+                <p>
+                  <strong>Document:</strong> {reuploadDoc.name}
+                </p>
+                <p>
+                  <strong>Type:</strong> {documentTypeLabels[reuploadDoc.type]}
+                </p>
+                <p>
+                  <strong>Client:</strong> {getDocumentContext(reuploadDoc).clientName}
+                </p>
+              </div>
+            )}
+            <div className="space-y-2">
+              <Label>Reason for Re-upload *</Label>
+              <Select value={reuploadReason} onValueChange={setReuploadReason}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="blurry">Document is blurry/unclear</SelectItem>
+                  <SelectItem value="incomplete">Document is incomplete</SelectItem>
+                  <SelectItem value="expired">Document has expired</SelectItem>
+                  <SelectItem value="wrong_document">Wrong document uploaded</SelectItem>
+                  <SelectItem value="missing_pages">Missing pages</SelectItem>
+                  <SelectItem value="wrong_format">Wrong file format</SelectItem>
+                  <SelectItem value="other">Other reason</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Additional Instructions</Label>
+              <Textarea
+                value={reuploadInstructions}
+                onChange={(e) => setReuploadInstructions(e.target.value)}
+                placeholder="Provide specific instructions for the client..."
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1 bg-transparent" onClick={() => setReuploadDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-primary text-primary-foreground"
+                onClick={handleRequestReupload}
+                disabled={!reuploadReason || isSubmitting}
+              >
+                {isSubmitting ? "Sending..." : "Send Request"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Request Additional Documents Dialog */}
+      <Dialog open={additionalDocsDialogOpen} onOpenChange={setAdditionalDocsDialogOpen}>
+        <DialogContent className="bg-card max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Request Additional Documents</DialogTitle>
+            <DialogDescription>Ask a client to upload additional documents for their application.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>Select Application *</Label>
+              <Select
+                value={additionalDocsAppId}
+                onValueChange={(v) => {
+                  setAdditionalDocsAppId(v)
+                  const app = uniqueApps.find((a) => a.id === v)
+                  if (app) setAdditionalDocsClientId(app.clientId)
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an application" />
+                </SelectTrigger>
+                <SelectContent>
+                  {uniqueApps.map((app) => (
+                    <SelectItem key={app.id} value={app.id}>
+                      {app.serviceType.replace(/_/g, " ")} - {app.country || "N/A"} ({app.status})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Select Documents to Request *</Label>
+              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto border rounded-lg p-3">
+                {Object.entries(documentTypeLabels).map(([type, label]) => (
+                  <div key={type} className="flex items-center gap-2">
+                    <Checkbox
+                      id={type}
+                      checked={selectedDocTypes.includes(type as DocumentType)}
+                      onCheckedChange={(checked) => {
+                        if (checked) {
+                          setSelectedDocTypes([...selectedDocTypes, type as DocumentType])
+                        } else {
+                          setSelectedDocTypes(selectedDocTypes.filter((t) => t !== type))
+                        }
+                      }}
+                    />
+                    <label htmlFor={type} className="text-sm cursor-pointer">
+                      {label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label>Message to Client</Label>
+              <Textarea
+                value={additionalDocsMessage}
+                onChange={(e) => setAdditionalDocsMessage(e.target.value)}
+                placeholder="Add any specific instructions or context..."
+                rows={3}
+              />
+            </div>
+            <div className="flex gap-2 pt-2">
+              <Button
+                variant="outline"
+                className="flex-1 bg-transparent"
+                onClick={() => setAdditionalDocsDialogOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-primary text-primary-foreground"
+                onClick={handleRequestAdditionalDocs}
+                disabled={!additionalDocsAppId || selectedDocTypes.length === 0 || isSubmitting}
+              >
+                {isSubmitting ? "Sending..." : "Send Request"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* View Document Dialog */}
       <Dialog open={viewDialogOpen} onOpenChange={setViewDialogOpen}>
         <DialogContent className="bg-card max-w-3xl">
@@ -318,6 +621,14 @@ export function DocumentReviewManager({ documents, onDocumentUpdated }: Document
           </DialogHeader>
           {viewingDoc && (
             <div className="space-y-4 py-4">
+              <div className="p-3 bg-muted/50 rounded-lg text-sm grid grid-cols-2 gap-2">
+                <p>
+                  <strong>Client:</strong> {getDocumentContext(viewingDoc).clientName}
+                </p>
+                <p>
+                  <strong>Application:</strong> {getDocumentContext(viewingDoc).applicationName}
+                </p>
+              </div>
               {/* Document Preview */}
               <div className="aspect-[4/3] bg-muted rounded-lg overflow-hidden border">
                 {viewingDoc.fileUrl ? (

@@ -17,6 +17,7 @@ import {
   MoreHorizontalIcon,
   DownloadIcon,
   ArrowUpDownIcon,
+  CreditCardIcon, // Add icon for empty state
 } from "@/components/icons"
 import type { PaymentVerification, PaymentVerificationStatus } from "@/lib/types"
 import { getAllPaymentVerifications, verifyPayment } from "@/lib/api"
@@ -221,30 +222,41 @@ export default function PaymentVerificationsPage() {
           <CardTitle>Pending Verifications</CardTitle>
         </CardHeader>
         <CardContent>
-          <DataTable
-            columns={columns}
-            data={verifications}
-            searchPlaceholder="Search by client name or email..."
-            filterColumns={[
-              {
-                key: "status",
-                label: "Status",
-                options: [
-                  { value: "pending", label: "Pending" },
-                  { value: "verified", label: "Verified" },
-                  { value: "rejected", label: "Rejected" },
-                ],
-              },
-              {
-                key: "paymentMethod",
-                label: "Method",
-                options: [
-                  { value: "bank_transfer", label: "Bank Transfer" },
-                  { value: "mobile_money", label: "Mobile Money" },
-                ],
-              },
-            ]}
-          />
+          {verifications.length === 0 ? (
+            <div className="text-center py-12">
+              <CreditCardIcon className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-foreground mb-2">No Payment Verifications</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                There are no pending payment verifications at the moment. Payments requiring manual verification (bank
+                transfers, mobile money) will appear here.
+              </p>
+            </div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={verifications}
+              searchPlaceholder="Search by client name or email..."
+              filterColumns={[
+                {
+                  key: "status",
+                  label: "Status",
+                  options: [
+                    { value: "pending", label: "Pending" },
+                    { value: "verified", label: "Verified" },
+                    { value: "rejected", label: "Rejected" },
+                  ],
+                },
+                {
+                  key: "paymentMethod",
+                  label: "Method",
+                  options: [
+                    { value: "bank_transfer", label: "Bank Transfer" },
+                    { value: "mobile_money", label: "Mobile Money" },
+                  ],
+                },
+              ]}
+            />
+          )}
         </CardContent>
       </Card>
 
